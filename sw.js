@@ -1,6 +1,6 @@
 // Krapo Kwizz — fonctionnement hors connexion.
 // Augmentez VERSION à chaque modification du code (css/js/html) pour forcer la mise à jour.
-const VERSION = 'kk-app-v1';
+const VERSION = 'kk-app-v2';
 const MEDIA = 'kk-media-v1';
 const SHELL = ['./', 'index.html', 'css/style.css', 'js/app.js', 'data/especes.csv', 'manifest.webmanifest',
   'assets/logo-cerato-blanc.png', 'assets/logo-cerato-noir.png', 'assets/icon-192.png', 'assets/icon-512.png',
