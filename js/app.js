@@ -99,7 +99,7 @@ async function loadData() {
   const rows = parseCSV(await res.text());
   SP = rows.map(r => ({
     id: r.id, name: r.nom, vern: r.nom_vernaculaire, family: r.famille, page: r.page_guide,
-    sound: r.son, soundBy: r.auteur_son, photos: list(r.photos), photoBy: r.credit_photos || '', map: r.carte || '', ab: r.abondance || '', mo: r.moeurs || '', ui: r.uicn || '', pr: r.protection || '', habitat: r.habitat, size: r.taille,
+    sound: r.son, soundBy: r.auteur_son, photos: list(r.photos), photoBy: r.credit_photos || '', map: r.carte || '', ab: r.abondance || '', mo: r.moeurs || '', ui: r.uicn || '', pr: r.protection || '', pheno: (r.phenologie || '').padEnd(12, '').slice(0, 12), habitat: r.habitat, size: r.taille,
     crit: list(r.criteres), confNames: list(r.confusions), comment: r.commentaire, old: r.ancien_nom,
   })).filter(s => s.id && s.name);
   BYID = Object.fromEntries(SP.map(s => [s.id, s]));
@@ -133,6 +133,17 @@ function statutsHTML(s) {
   const items = [['ab', s.ab], ['mo', s.mo], ['ui', s.ui], ['pr', s.pr]].filter(([k, c]) => STATUTS[k].v[c]);
   if (!s.pr && items.length) items.push(['pr', '']);
   return items.length ? `<div class="statuts">${items.map(([k, c]) => `<div class="stt"><span class="stt-k">${STATUTS[k].titre}</span>${c ? statutChip(k, c, true) : '<span class="st st-none"><span>Non protégée</span></span>'}</div>`).join('')}</div>` : '';
+}
+const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+const MOIS_C = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jui', 'Juil', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+const curMonth = () => new Date().getMonth();
+const activeNow = (s, m = curMonth()) => !!s.pheno && +s.pheno[m] > 0;
+function phenoHTML(s) {
+  if (!s.pheno || s.pheno.length < 12) return '';
+  const m = curMonth();
+  return `<div class="pheno"><div class="pheno-h"><b>Période d'observation</b>${activeNow(s) ? `<span class="tag">Active en ${MOIS[m]}</span>` : `<span class="tag off">Peu observée en ${MOIS[m]}</span>`}</div>
+    <div class="pheno-bar">${MOIS_C.map((c, i) => `<span class="pm l${s.pheno[i]}${i === m ? ' now' : ''}" title="${MOIS[i]}"><i></i><small>${c}</small></span>`).join('')}</div>
+    <div class="pheno-leg"><span><i class="l2"></i>souvent observée</span><span><i class="l1"></i>observée</span><span><i class="l0"></i>rarement ou pas observée</span></div></div>`;
 }
 const hasSound = s => !!s.sound, hasPhoto = s => s.photos.length > 0;
 const soundURL = s => 'sons/' + s.sound, photoURL = f => 'photos/' + f, mapURL = s => 'cartes/' + s.map;
@@ -195,10 +206,10 @@ const MARE_N = { decouverte: 2, inter: 3, expert: 4 };
 const RYTHMES = { serie: ['Série', `${CFG.serieLength} questions`], chrono: ['Chrono', `${CFG.chronoSeconds} secondes`], survie: ['Survie', `${CFG.lives} vies`] };
 function isFree() { return S.mode === 'ecoute' ? S.format === 'saisie' : S.level === 'maitre'; }
 function poolFor(cfg = S) {
-  return SP.filter(s => (!cfg.fams.length || cfg.fams.includes(s.family)) &&
+  return SP.filter(s => (!cfg.fams.length || cfg.fams.includes(s.family)) && (!cfg.saison || activeNow(s)) &&
     (cfg.mode === 'ecoute' ? hasSound(s) && (!['photos', 'inverse'].includes(cfg.format) || hasPhoto(s)) : hasPhoto(s)));
 }
-function configKey(cfg = S) { return [cfg.mode, cfg.mode === 'ecoute' ? cfg.format : '', cfg.level, cfg.rythme, cfg.fams.length ? cfg.fams.slice().sort().join('+') : 'toutes'].join('/'); }
+function configKey(cfg = S) { return [cfg.mode, cfg.mode === 'ecoute' ? cfg.format : '', cfg.level, cfg.rythme, cfg.fams.length ? cfg.fams.slice().sort().join('+') : 'toutes'].join('/') + (cfg.saison ? '/saison' : ''); }
 function configLabel(key) {
   if (key === 'daily') return 'Défi du jour';
   if (key.startsWith('mare/')) { const [, lv, amb] = key.split('/'); const a = AMB.find(x => x.id === amb); return ['Ambiance mare', MARE_LEVELS[lv] ? MARE_LEVELS[lv][0] : lv, a ? a.name : 'ambiances au hasard'].join(' · '); }
@@ -269,6 +280,7 @@ function viewHome() {
       ${S.mode === 'ecoute' ? `<label class="toggle"><span>Spectrogramme<small>Voir le chant défiler pendant l'écoute</small></span><input type="checkbox" class="switch" id="t-spectro"${S.spectro ? ' checked' : ''}></label>` : ''}
       ${S.mode === 'photo' ? `<label class="toggle"><span>Photo qui se dévoile<small>La photo est floue puis devient nette : plus tu réponds tôt, plus tu gagnes de points</small></span><input type="checkbox" class="switch" id="t-reveal"${S.reveal ? ' checked' : ''}></label>` : ''}
       ${!isFree() && !(S.mode === 'ecoute' && ['photos', 'inverse'].includes(S.format)) ? `<label class="toggle"><span>Noms vernaculaires<small>Afficher « Rainette ponctuée » sous le nom scientifique</small></span><input type="checkbox" class="switch" id="t-vern"${S.vern ? ' checked' : ''}></label>` : ''}
+      <label class="toggle"><span>Ce qui chante en ${MOIS[curMonth()]}<small>Seulement les espèces observées ce mois-ci, pour réviser avant de sortir</small></span><input type="checkbox" class="switch" id="t-saison"${S.saison ? ' checked' : ''}></label>
       <label class="toggle"><span>Révision ciblée<small>Les espèces que tu rates reviennent plus souvent</small></span><input type="checkbox" class="switch" id="t-rev"${S.revision ? ' checked' : ''}></label>
     </div>
     <div class="start"><div><div class="count">${n} espèce${n > 1 ? 's' : ''} dans cette partie</div>${best ? `<div class="best">Record : ${best} pts</div>` : ''}</div>
@@ -283,7 +295,7 @@ function viewHome() {
   $('#famchips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; const f = b.dataset.f; S.fams = S.fams.includes(f) ? S.fams.filter(x => x !== f) : [...S.fams, f]; saveSettings(); viewHome(); $('details.fams').open = true; };
   const fr = $('#famreset'); if (fr) fr.onclick = () => { S.fams = []; saveSettings(); viewHome(); };
   const tg = (id, key) => { const el = $('#' + id); if (el) el.onchange = () => { S[key] = el.checked; saveSettings(); }; };
-  tg('t-spectro', 'spectro'); tg('t-vern', 'vern'); tg('t-rev', 'revision'); tg('t-reveal', 'reveal');
+  tg('t-spectro', 'spectro'); tg('t-vern', 'vern'); tg('t-rev', 'revision'); tg('t-reveal', 'reveal'); const ts = $('#t-saison'); if (ts) ts.onchange = () => { S.saison = ts.checked; saveSettings(); viewHome(); };
   $('#go').onclick = () => startGame();
 }
 
@@ -401,6 +413,7 @@ function renderStage() {
 }
 function hintList(s) {
   const h = [['Famille', s.family]];
+  if (s.pheno) h.push(['Période', MOIS_C.filter((c, i) => +s.pheno[i] > 0).join(' · ') || 'rarement observée']);
   if (s.map) h.push(['Répartition', `<img class="hint-map" src="${mapURL(s)}" alt="Carte de répartition en Guyane"><span class="hint-cap">En vert : zone où l'espèce est connue</span>`]);
   if (s.habitat || s.size) h.push(['Milieu', [s.habitat, s.size].filter(Boolean).join(' · ')]);
   if (Game.cfg.mode === 'photo' && s.crit.length) h.push(['Critère', s.crit[0]]);
@@ -571,7 +584,7 @@ document.addEventListener('keydown', e => {
 });
 
 /* ---------------- espèces ---------------- */
-let libQ = '', libF = '';
+let libQ = '', libF = '', libSaison = false;
 function viewSpecies(openId) {
   Audio.stop();
   $('#app').innerHTML = `<span class="eyebrow">${SP.length} espèces · ${SP.filter(hasSound).length} chants</span>
@@ -579,15 +592,17 @@ function viewSpecies(openId) {
     <p class="lede">Les fiches du guide, les photos et les chants de la sonothèque, avec les noms à jour.</p>
     <div class="toolbar"><input type="search" id="q" placeholder="Nom, genre, famille…" aria-label="Chercher une espèce" value="${esc(libQ)}">
     <select id="fsel" aria-label="Famille"><option value="">Toutes les familles</option>${FAMS.map(f => `<option${f === libF ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select></div>
+    <button type="button" class="chip saison-chip" id="saison" aria-pressed="${libSaison}">${ICON.ear} Ce qui chante en ${MOIS[curMonth()]} <span class="n">${SP.filter(s => activeNow(s)).length}</span></button>
     <div id="lib"></div>`;
   $('#q').oninput = e => { libQ = e.target.value; renderLib(); };
   $('#fsel').onchange = e => { libF = e.target.value; renderLib(); };
+  $('#saison').onclick = e => { libSaison = !libSaison; e.currentTarget.setAttribute('aria-pressed', libSaison); renderLib(); };
   renderLib(); bindRows($('#app'));
   if (openId && BYID[openId]) openSheet(openId, true);
 }
 function renderLib() {
   const q = norm(libQ);
-  const L = SP.filter(s => (!libF || s.family === libF) && (!q || [s.name, s.old, s.vern, s.family].some(x => x && norm(String(x)).includes(q))));
+  const L = SP.filter(s => (!libF || s.family === libF) && (!libSaison || activeNow(s)) && (!q || [s.name, s.old, s.vern, s.family].some(x => x && norm(String(x)).includes(q))));
   const fams = [...new Set(L.map(s => s.family))].sort((a, b) => a.localeCompare(b));
   $('#lib').innerHTML = fams.length ? fams.map(f => { const ss = L.filter(s => s.family === f).sort((a, b) => (+a.page - +b.page) || a.name.localeCompare(b.name));
     return `<section class="famblock"><h2>${esc(f)}<span>${ss.length} espèce${ss.length > 1 ? 's' : ''}</span></h2><div class="grid">${ss.map(s => `
@@ -609,6 +624,7 @@ function openSheet(id, fromRoute) {
       ${hasSound(s) ? `<div class="player"><button type="button" class="mini" data-play="${s.id}" aria-label="Écouter">${ICON.play}</button><div class="pt"><b>Chant</b><span>Enregistrement : ${esc(s.soundBy)}</span><div class="pbar"><div id="sheetbar"></div></div></div></div>` : '<p class="muted" style="margin:0">Pas de chant dans la sonothèque pour cette espèce.</p>'}
       ${s.photoBy ? `<p class="small" style="margin:0">Photos : ${esc(s.photoBy)}</p>` : ''}
       ${statutsHTML(s)}
+      ${phenoHTML(s)}
       ${s.map ? `<div class="sheet-map"><img src="${mapURL(s)}" alt="Carte de répartition de ${esc(s.name)} en Guyane" loading="lazy"><div><b>Répartition en Guyane</b><span>En vert, la zone où l'espèce est connue, d'après les données de Faune-Guyane.</span></div></div>` : ''}
       <dl class="facts">${s.habitat ? `<dt>Habitat</dt><dd>${esc(s.habitat)}</dd>` : ''}${s.size ? `<dt>Taille</dt><dd>${esc(s.size)}</dd>` : ''}</dl>
       ${s.crit.length ? `<div><b>Critères d'identification</b><ul class="crit">${s.crit.map(c => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}

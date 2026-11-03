@@ -39,6 +39,7 @@ C'est le cœur de l'appli : une ligne par espèce. GitHub l'affiche comme un tab
 | `carte` | carte de répartition dans le dossier `cartes/` (affichée sur la fiche et en indice) | `boana-boans.webp` |
 | `credit_photos` | auteur(s) des photos, affiché sur la fiche | `Elven Remérand` |
 | `abondance`, `moeurs`, `uicn`, `protection` | codes du guide : TC/C/PF/R/TR · T/A/Aq · CR/EN/VU/NT/LC/DD/NA · P/H (vide = non protégée) | `PF`, `A`, `LC`, `H` |
+| `phenologie` | 12 chiffres, de janvier à décembre : 0 = rarement ou pas observée, 1 = observée, 2 = souvent observée | `000100000011` |
 | `habitat`, `taille` | utilisés pour les indices et la fiche | `Marais (littoral)` |
 | `criteres` | critères d'identification, séparés par ` \| ` | `Museau court \| Iris rouge` |
 | `confusions` | noms des espèces confondables, séparés par ` \| ` ; utilisés pour le niveau Expert | `Scinax jolyi \| Scinax proboscideus` |
