@@ -82,7 +82,7 @@ const Store = {
   data: { m: {}, best: {}, last: null, totals: { games: 0, answers: 0, correct: 0 }, badges: {}, daily: {}, carnet: {}, rec: {} },
   load() { try { const d = JSON.parse(localStorage.getItem(CFG.storeKey)); if (d) this.data = Object.assign(this.data, d); } catch (e) {} ['badges', 'daily', 'carnet', 'rec'].forEach(k => { this.data[k] = this.data[k] || {}; }); },
   bump(k, v) { this.data.rec[k] = Math.max(this.data.rec[k] || 0, v); this.save(); },
-  save() { try { localStorage.setItem(CFG.storeKey, JSON.stringify(this.data)); } catch (e) {} },
+  save() { try { localStorage.setItem(CFG.storeKey, JSON.stringify(this.data)); } catch (e) {} if (window.Social) Social.queueSync(); },
   mastery(id, kind) { return (this.data.m[id] && this.data.m[id][kind]) || { n: 0, c: 0, b: 0 }; },
   record(id, kind, ok) {
     const m = this.data.m[id] || (this.data.m[id] = {}); const s = m[kind] || (m[kind] = { n: 0, c: 0, b: 0 });
@@ -193,11 +193,18 @@ function route() {
   const h = location.hash.replace(/^#/, '') || 'jouer';
   const [view, arg] = h.split('/');
   if (Game && view !== 'partie') endGame(true);
+  if (window.Social && view !== 'salon') Social.leaveSalonView();
+  const navKey = { joueur: 'ensemble', battle: 'ensemble', salon: 'ensemble', apropos: 'progres', confidentialite: 'progres' }[view] || view;
   document.body.classList.toggle('in-game', view === 'partie');
-  $$('.nav a').forEach(a => { if (a.dataset.nav === view) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  $$('.nav a').forEach(a => { if (a.dataset.nav === navKey) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   closeSheet();
   if (view === 'especes') viewSpecies(arg);
   else if (view === 'carnet') viewCarnet();
+  else if (view === 'ensemble') Social.viewEnsemble();
+  else if (view === 'joueur') Social.viewJoueur(decodeURIComponent(arg || ''));
+  else if (view === 'battle') Social.viewBattle(arg);
+  else if (view === 'salon') Social.viewSalon(arg);
+  else if (view === 'confidentialite') Social.viewPrivacy();
   else if (view === 'progres') viewProgress();
   else if (view === 'apropos') viewAbout();
   else if (view === 'partie' && Game) {/* déjà affiché */}
@@ -326,7 +333,7 @@ function updateHUD() {
   const g = Game;
   $('#gscore').textContent = g.score;
   $('#gcombo').textContent = g.streak >= 3 ? `Série ×${g.streak}` : '';
-  if (g.fixed) { $('#gcount').textContent = `Défi du jour · ${Math.min(g.idx + 1, g.fixed.length)} / ${g.fixed.length}`; $('#gbar').style.width = (g.idx / g.fixed.length * 100) + '%'; }
+  if (g.fixed) { $('#gcount').textContent = `${g.label || 'Défi du jour'} · ${Math.min(g.idx + 1, g.fixed.length)} / ${g.fixed.length}`; $('#gbar').style.width = (g.idx / g.fixed.length * 100) + '%'; }
   else if (g.cfg.rythme === 'serie') { $('#gcount').textContent = `Question ${Math.min(g.idx + 1, g.deck.length)} / ${g.deck.length}`; $('#gbar').style.width = (g.idx / g.deck.length * 100) + '%'; }
   else if (g.cfg.rythme === 'survie') { $('#gcount').innerHTML = `<span class="lives">${Array.from({ length: CFG.lives }, (_, i) => ICON.heart.replace('<svg', `<svg class="${i < g.lives ? '' : 'off'}"`)).join('')}</span>`; $('#gleft').textContent = `${g.correct} bonne${g.correct > 1 ? 's' : ''} réponse${g.correct > 1 ? 's' : ''}`; $('#gbar').style.width = (g.lives / CFG.lives * 100) + '%'; }
   else { $('#gcount').textContent = `${g.correct} bonne${g.correct > 1 ? 's' : ''} réponse${g.correct > 1 ? 's' : ''}`; }
@@ -482,13 +489,14 @@ function showFeedback(ok, half, pick, info, pts) {
 }
 function finish() {
   const g = Game; if (!g || g.done) return; g.done = true; clearInterval(g.timer); Audio.stop();
-  if (g.fixed) return finishDaily(g);
+  if (g.fixed) return g.onFinish ? g.onFinish(g) : finishDaily(g);
   if (g.cfg.rythme === 'survie') Store.bump('survie', g.correct);
   if (g.cfg.rythme === 'chrono') Store.bump('chrono', g.correct);
   Store.bump('streak', g.bestStreak);
   if (g.cfg.rythme === 'serie' && !g.revisit && g.answered >= CFG.serieLength && g.correct === g.answered) Store.bump('perfect', 1);
   const prev = Store.data.best[g.key] || 0, record = g.score > prev && g.score > 0 && !g.revisit;
   if (record) { Store.data.best[g.key] = g.score; Store.save(); }
+  if (window.Social && g.score > 0 && !g.revisit) Social.onScore(g.key, g.score);
   const pct = g.answered ? Math.round(g.correct / g.answered * 100) : 0;
   $('#app').innerHTML = `<section class="end">
     <span class="eyebrow">${configLabel(g.key)}</span>
@@ -604,7 +612,7 @@ function viewProgress() {
   const mast = (arr, k) => arr.filter(s => Store.mastery(s.id, k).b >= 3).length;
   const t = Store.data.totals, pct = t.answers ? Math.round(t.correct / t.answers * 100) : 0;
   const recs = Object.entries(Store.data.best).sort((a, b) => b[1] - a[1]).slice(0, 10);
-  $('#app').innerHTML = `<span class="eyebrow">Sur cet appareil</span><h1 class="display" style="font-size:clamp(2.2rem,8vw,3.4rem)">Mes progrès</h1>
+  $('#app').innerHTML = `${window.Social ? Social.accountCardHTML() : ''}<span class="eyebrow">Sur cet appareil</span><h1 class="display" style="font-size:clamp(2.2rem,8vw,3.4rem)">Mes progrès</h1>
     <p class="lede">Une espèce est maîtrisée quand tu l'as reconnue plusieurs fois de suite. Rien n'est envoyé en ligne : tout reste sur ton téléphone ou ton ordinateur.</p>
     <div class="kpis">
       <div class="kpi"><b>${mast(sE, 'e')}<small style="font-size:1rem;color:var(--muted)"> / ${sE.length}</small></b><span>chants maîtrisés</span></div>
@@ -620,7 +628,9 @@ function viewProgress() {
     ${recs.length ? `<h2 style="margin-top:26px">Records</h2><div class="records">${recs.map(([k, v]) => `<div class="rec"><span>${esc(configLabel(k))}</span><b>${v}</b></div>`).join('')}</div>` : ''}
     ${badgesHTML()}
     ${weakList()}
-    <div class="row" style="margin-top:26px"><button type="button" class="btn ghost" id="reset">Effacer mes progrès</button><span class="small" id="resetmsg"></span></div>`;
+    <div class="row" style="margin-top:26px"><button type="button" class="btn ghost" id="reset">Effacer mes progrès</button><span class="small" id="resetmsg"></span></div>
+    <div class="row links-foot"><a href="#apropos">À propos de Krapo Kwizz</a><a href="#confidentialite">Confidentialité</a></div>`;
+  if (window.Social) Social.bindAccountCard();
   bindRows($('#app'));
   const r = $('#reset'); let armed = false;
   r.onclick = () => { if (!armed) { armed = true; r.textContent = 'Confirmer l\'effacement'; $('#resetmsg').textContent = 'Clique encore pour tout effacer.'; return; }
@@ -726,6 +736,27 @@ function bindDailyCard() {
   const go = $('#dgo'); if (go) go.onclick = startDaily;
   const sh = $('#dshare'); if (sh) sh.onclick = () => { const d = todayStr(); shareText(dailyShareText(Store.data.daily[d], d)); };
 }
+function startFixed(fixed, opts = {}) {
+  Game = { cfg: { ...S, format: 'noms', level: 'inter', rythme: 'serie', revision: false, fams: [], reveal: false }, key: opts.key || 'fixed', label: opts.label, onFinish: opts.onFinish, date: opts.date, fixed, pool: [], deck: fixed.map(q => q.id), idx: -1,
+    recent: [], score: 0, streak: 0, bestStreak: 0, correct: 0, answered: 0, lives: CFG.lives, misses: [], done: false, timer: 0, cur: null, choices: [], hints: 0, locked: false, photo: null, revisit: true, grid: [] };
+  Store.data.totals.games++; Store.save();
+  history.pushState(null, '', '#partie'); document.body.classList.add('in-game'); $$('.nav a').forEach(a => a.removeAttribute('aria-current'));
+  nextQuestion();
+}
+function buildFixed(mode, level, n, seed) { // mode: ecoute | photo | mixte
+  const r = rng(seed >>> 0), sndPool = SP.filter(hasSound), phoPool = SP.filter(hasPhoto), used = new Set(), qs = [];
+  for (let i = 0; i < n; i++) {
+    const m = mode === 'mixte' ? (i % 2 ? 'photo' : 'ecoute') : mode, pool = m === 'ecoute' ? sndPool : phoPool;
+    const cands = pool.filter(s => !used.has(s.id)); const cur = cands[r() * cands.length | 0]; if (!cur) break; used.add(cur.id);
+    const others = pool.filter(s => s.id !== cur.id);
+    const groups = level === 'decouverte' ? [others.filter(s => s.family !== cur.family), others.filter(s => s.family === cur.family)]
+      : level === 'expert' ? [others.filter(s => cur.conf.includes(s.id)), others.filter(s => s.genus === cur.genus && !cur.conf.includes(s.id)), others.filter(s => s.family === cur.family && s.genus !== cur.genus), others.filter(s => s.family !== cur.family)]
+      : [others.filter(s => s.family === cur.family), others.filter(s => s.family !== cur.family)];
+    const ds = []; for (const gr of groups) for (const s of seededShuffle(gr, r)) { if (ds.length >= 3) break; if (!ds.includes(s)) ds.push(s); }
+    qs.push({ mode: m, id: cur.id, choices: seededShuffle([cur, ...ds], r).map(s => s.id), photo: hasPhoto(cur) ? cur.photos[r() * cur.photos.length | 0] : null });
+  }
+  return qs;
+}
 function startDaily() {
   const date = todayStr(); if (Store.data.daily[date]) return toast('Tu as déjà relevé le défi du jour, reviens demain !');
   const fixed = dailyQuestions(date);
@@ -738,6 +769,7 @@ function startDaily() {
 function finishDaily(g) {
   const res = { score: g.score, correct: g.correct, n: g.fixed.length, grid: g.grid };
   Store.data.daily[g.date] = res; Store.bump('dailies', Object.keys(Store.data.daily).length); Store.bump('dailyStreak', dailyStreak()); Store.save();
+  if (window.Social) Social.onDaily(g.date, res);
   $('#app').innerHTML = `<section class="end">
     <span class="eyebrow">Défi du jour</span>
     <div class="scorebig">${g.correct}/${res.n}</div><div class="grid-emoji">${res.grid.join('')}</div>
@@ -858,6 +890,7 @@ function finishMare() {
   if (played > 0) Store.bump('mares', (Store.data.rec.mares || 0) + 1);
   const prev = Store.data.best[g.key] || 0, record = g.score > prev && g.score > 0;
   if (record) { Store.data.best[g.key] = g.score; Store.save(); }
+  if (window.Social && g.score > 0) Social.onScore(g.key, g.score);
   $('#app').innerHTML = `<section class="end">
     <span class="eyebrow">${esc(configLabel(g.key))}</span>
     <div class="scorebig">${g.score}</div><div>points</div>
