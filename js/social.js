@@ -91,11 +91,13 @@ function errMsg(e) {
   const c = (e && (e.code || e.message)) || '';
   if (/pseudo-pris/.test(c)) return 'Ce pseudo est déjà pris, choisis-en un autre.';
   if (/network|unavailable|offline|Impossible de charger/.test(c)) return 'Pas de connexion au service en ligne. Vérifie ton réseau et réessaie.';
-  if (/permission/.test(c)) return 'Action refusée par le serveur.';
+  if (/permission/.test(c)) return `Action refusée par le serveur (${c}).`;
+  if (/operation-not-allowed|admin-restricted|configuration-not-found/.test(c)) return `Connexion désactivée dans Firebase (${c}).`;
   if (/invalid-email/.test(c)) return 'Adresse e-mail invalide.';
   if (/requires-recent-login/.test(c)) return 'Par sécurité, reconnecte-toi avec le lien e-mail puis recommence.';
   if (/invalid-action-code|expired-action-code/.test(c)) return 'Ce lien de connexion a expiré ou a déjà servi. Demande-en un nouveau.';
-  return 'Une erreur est survenue. Réessaie dans un instant.';
+  console.error('Krapo Kwizz', e);
+  return `Une erreur est survenue (${String(c).slice(0, 80)}). Réessaie dans un instant.`;
 }
 const LS = { get(k) { try { return localStorage.getItem('kk.' + k); } catch (e) { return null; } }, set(k, v) { try { v == null ? localStorage.removeItem('kk.' + k) : localStorage.setItem('kk.' + k, v); } catch (e) {} } };
 const dateFr = d => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
