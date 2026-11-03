@@ -1,7 +1,7 @@
 {
   "name": "Krapo Kwizz",
   "short_name": "Krapo Kwizz",
-  "description": "Le quiz des chants et des photos d'amphibiens de Guyane, avec Cerato.",
+  "description": "Le quiz des chants et des photos d'amphibiens de Guyane.",
   "lang": "fr",
   "start_url": "./",
   "scope": "./",

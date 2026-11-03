@@ -220,7 +220,6 @@ function viewHome() {
     <span class="eyebrow">Amphibiens de Guyane</span>
     <h1 style="margin:0"><img class="hero-logo" src="assets/logo-kk-${matchMedia('(prefers-color-scheme: light)').matches ? 'noir' : 'blanc'}.png" alt="Krapo Kwizz"></h1>
     <p class="lede">Apprends à reconnaître les grenouilles et crapauds de Guyane à l'oreille et à l'œil, avant d'aller les écouter en forêt.</p>
-    <div class="with"><img src="assets/logo-cerato-${matchMedia('(prefers-color-scheme: light)').matches ? 'noir' : 'blanc'}.png" alt="">avec Cerato, association herpétologique de Guyane</div>
   </section>
   ${dailyCardHTML()}
   <div class="modes" role="group" aria-label="Type de jeu">
@@ -665,7 +664,7 @@ function viewAbout() {
     ${(() => { const extra = [...new Set(SP.map(s => s.photoBy).filter(c => c && !c.startsWith('Guide')).flatMap(c => c.split(/ & |, /)))]; return extra.length ? `<p><b>Autres photos :</b> ${extra.map(esc).join(', ')}. Le crédit de chaque photo est indiqué sur la fiche de l'espèce.</p>` : ''; })()}
     <p><b>Taxonomie :</b> noms mis à jour en 2026, dont <i>Pristimantis flavus</i> et <i>P. fouqueti</i> (Mônico et al. 2025), <i>P. grandoculis</i>, <i>Scinax</i> cf. <i>cruentomma</i> et <i>Otophryne</i> aff. <i>robusta</i>.</p>
     <p><b>Licence :</b> les contenus (sons, photos, textes) sont partagés sous licence <a href="https://creativecommons.org/licenses/by-nc/4.0/deed.fr" target="_blank" rel="noopener">Creative Commons BY-NC 4.0</a>. Tu peux les réutiliser en citant leurs auteurs, sans usage commercial.</p>
-    <p class="small cerato-foot"><img src="assets/logo-cerato-${light ? 'noir' : 'blanc'}.png" alt="Logo de Cerato"><span>Krapo Kwizz est publié avec Cerato, association herpétologique de Guyane. Conception : Nicolas Burnel.</span></p>
+    <p class="small">Conception : Nicolas Burnel.</p>
   </article>`;
   $('#dl').onclick = downloadAll;
 }

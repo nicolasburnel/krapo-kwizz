@@ -1,6 +1,6 @@
 # Krapo Kwizz
 
-Le quiz des chants et des photos d'amphibiens de Guyane, publié avec **Cerato**, association herpétologique de Guyane.
+Le quiz des chants et des photos d'amphibiens de Guyane.
 
 👉 Le jeu en ligne : **https://nicolasburnel.github.io/krapo-kwizz/**
 
@@ -91,7 +91,7 @@ Settings → Pages → *Build and deployment* : Source « Deploy from a branch �
 
 - **Chants** : sonothèque de l'Atlas des amphibiens de Guyane. L'auteur de chaque enregistrement est indiqué dans `data/especes.csv` et sur chaque fiche.
 - **Photos et critères** : *Guide d'identification des Amphibiens de Guyane*, E. Remérand & Q. Uriot (2023), et ses photographes.
-- **Conception** : Nicolas Burnel, avec Cerato.
+- **Conception** : Nicolas Burnel.
 
 Les contenus (sons, photos, textes) sont sous licence **Creative Commons BY-NC 4.0** (attribution, pas d'usage commercial), voir `LICENSE.md`. Le code de l'appli est sous licence MIT.
 

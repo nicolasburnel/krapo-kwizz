@@ -321,8 +321,6 @@ details.fams .chips{margin-top:10px}
 
 .hero-logo{width:min(250px,62vw);height:auto;margin:4px 0 2px}
 .about-hero img.kk{width:120px;height:auto}
-.cerato-foot{display:flex;align-items:center;gap:10px}
-.cerato-foot img{width:40px;height:40px;flex:none}
 
 /* ---- v2 : défi du jour, ambiance mare, mode inverse, badges, carnet ---- */
 .modes .mode.wide{grid-column:1/-1;min-height:118px}
