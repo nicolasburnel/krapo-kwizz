@@ -459,3 +459,11 @@ details.fams .chips{margin-top:10px}
 .tag-st .st>b,.tag-st .st>svg{min-width:22px;height:20px;padding:0 4px;font-size:.62rem;border-radius:6px}
 .tag-st .st>svg{width:22px;padding:2px 4px}
 .card .tags{align-items:center}
+
+/* correctif : taille des photos sur téléphone (Safari ignore max-height:100% dans un bloc à ratio fixe) */
+.card .ph,.pic,.choices.pics .choice .ph,.sheet .gal .main{position:relative;width:100%;overflow:hidden}
+.card .ph img,.pic img,.choices.pics .choice .ph img,.sheet .gal .main img{position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;box-sizing:border-box}
+.card .ph img{padding:8px}
+.pic img{padding:12px}
+.choices.pics .choice .ph img{padding:6px}
+.sheet .gal .main img{padding:12px}
