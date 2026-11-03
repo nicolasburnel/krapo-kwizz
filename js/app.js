@@ -79,7 +79,7 @@ async function loadData() {
   const rows = parseCSV(await res.text());
   SP = rows.map(r => ({
     id: r.id, name: r.nom, vern: r.nom_vernaculaire, family: r.famille, page: r.page_guide,
-    sound: r.son, soundBy: r.auteur_son, photos: list(r.photos), habitat: r.habitat, size: r.taille,
+    sound: r.son, soundBy: r.auteur_son, photos: list(r.photos), photoBy: r.credit_photos || '', habitat: r.habitat, size: r.taille,
     crit: list(r.criteres), confNames: list(r.confusions), comment: r.commentaire, old: r.ancien_nom,
   })).filter(s => s.id && s.name);
   BYID = Object.fromEntries(SP.map(s => [s.id, s]));
@@ -507,6 +507,7 @@ function openSheet(id, fromRoute) {
     <div class="body">
       <div class="title"><span class="eyebrow">${esc(s.family)}</span><h2>${sciHTML(s.name)}</h2><span class="vn">${esc(s.vern)}</span>${s.old ? `<span class="old">Nom dans le guide 2023 : ${sciHTML(s.old)}</span>` : ''}</div>
       ${hasSound(s) ? `<div class="player"><button type="button" class="mini" data-play="${s.id}" aria-label="Écouter">${ICON.play}</button><div class="pt"><b>Chant</b><span>Enregistrement : ${esc(s.soundBy)}</span><div class="pbar"><div id="sheetbar"></div></div></div></div>` : '<p class="muted" style="margin:0">Pas de chant dans la sonothèque pour cette espèce.</p>'}
+      ${s.photoBy ? `<p class="small" style="margin:0">Photos : ${esc(s.photoBy)}</p>` : ''}
       <dl class="facts">${s.habitat ? `<dt>Habitat</dt><dd>${esc(s.habitat)}</dd>` : ''}${s.size ? `<dt>Taille</dt><dd>${esc(s.size)}</dd>` : ''}${s.page ? `<dt>Guide</dt><dd>page ${esc(s.page)}</dd>` : ''}</dl>
       ${s.crit.length ? `<div><b>Critères d'identification</b><ul class="crit">${s.crit.map(c => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}
       ${s.conf.length ? `<div><b>Confusions possibles</b><div class="conf" style="margin-top:6px">${s.conf.map(c => `<button type="button" data-goto="${c}">${sciHTML(BYID[c].name)}</button>`).join('')}</div></div>` : ''}
@@ -587,7 +588,8 @@ function viewAbout() {
     <h2>Crédits</h2>
     <p><b>Chants :</b> sonothèque de l'Atlas des amphibiens de Guyane. Enregistrements de ${authors.map(esc).join(', ')}. L'auteur de chaque chant est indiqué sur la fiche de l'espèce.</p>
     <p><b>Photos, textes et critères d'identification :</b> <i>Guide d'identification des Amphibiens de Guyane</i>, Elven Remérand & Quentin Uriot (2023), et ses photographes : Antoine Fouquet, Augustin Bussac, Arnaud Aury, Axel Marchelie, Benoit Villette, Daniel Baudain, Élodie Courtoie, Elven Remérand, Florent Pouzet, Hugo Foxonet, Maël Dewynter, Philippe Gaucher, Pierre Visquesnel, Quentin Uriot, Sylvain Uriot, Vincent Prémel, Xavier Rufray, ainsi que des photographes du FRAG.</p>
-    <p><b>Taxonomie :</b> noms mis à jour en 2026, dont <i>Pristimantis flavus</i> et <i>P. fouqueti</i> (Mônico et al. 2025).</p>
+    ${(() => { const extra = [...new Set(SP.map(s => s.photoBy).filter(c => c && !c.startsWith('Guide')).flatMap(c => c.split(/ & |, /)))]; return extra.length ? `<p><b>Autres photos :</b> ${extra.map(esc).join(', ')}. Le crédit de chaque photo est indiqué sur la fiche de l'espèce.</p>` : ''; })()}
+    <p><b>Taxonomie :</b> noms mis à jour en 2026, dont <i>Pristimantis flavus</i> et <i>P. fouqueti</i> (Mônico et al. 2025), <i>P. granducolis</i>, <i>Scinax</i> cf. <i>cruentomma</i> et <i>Otophryne</i> aff. <i>robusta</i>.</p>
     <p><b>Licence :</b> les contenus (sons, photos, textes) sont partagés sous licence <a href="https://creativecommons.org/licenses/by-nc/4.0/deed.fr" target="_blank" rel="noopener">Creative Commons BY-NC 4.0</a>. Tu peux les réutiliser en citant leurs auteurs, sans usage commercial.</p>
     <p class="small">Krapo Kwizz est publié avec Cerato, association herpétologique de Guyane. Conception : Nicolas Burnel.</p>
   </article>`;

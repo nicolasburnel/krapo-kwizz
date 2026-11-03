@@ -32,6 +32,7 @@ C'est le cœur de l'appli : une ligne par espèce. GitHub l'affiche comme un tab
 | `son` | nom du fichier dans le dossier `sons/` (vide = pas de chant) | `scinax-cynocephalus.mp3` |
 | `auteur_son` | auteur de l'enregistrement | `Christian Marty & Philippe Gaucher` |
 | `photos` | fichiers du dossier `photos/`, séparés par ` \| ` | `scinax-cynocephalus-1.webp \| scinax-cynocephalus-2.webp` |
+| `credit_photos` | auteur(s) des photos, affiché sur la fiche | `Elven Remérand` |
 | `habitat`, `taille` | utilisés pour les indices et la fiche | `Marais (littoral)` |
 | `criteres` | critères d'identification, séparés par ` \| ` | `Museau court \| Iris rouge` |
 | `confusions` | noms des espèces confondables, séparés par ` \| ` ; utilisés pour le niveau Expert | `Scinax jolyi \| Scinax proboscideus` |
@@ -56,9 +57,10 @@ C'est le cœur de l'appli : une ligne par espèce. GitHub l'affiche comme un tab
 
 ### Ajouter une photo
 
-1. Prépare une image au format WebP ou JPG, d'environ 900 px de large, si possible détourée ou sur fond neutre.
+1. Prépare une image au format WebP ou JPG. Donne-lui un **nouveau nom** (par exemple `-v3`) si elle remplace une ancienne photo : sinon les joueurs qui ont déjà l'ancienne en mémoire hors-ligne continueront de la voir.
+   Format conseillé : WebP ou JPG, d'environ 900 px de large, si possible détourée ou sur fond neutre.
 2. Dépose-la dans le dossier `photos/`.
-3. Ajoute son nom dans la colonne `photos`, séparé des autres par ` | `. La première photo sert de vignette et de proposition dans le mode « 4 photos ».
+3. Ajoute son nom dans la colonne `photos` (et le photographe dans `credit_photos`), séparé des autres par ` | `. La première photo sert de vignette et de proposition dans le mode « 4 photos ».
 
 ### Ajouter une espèce
 
