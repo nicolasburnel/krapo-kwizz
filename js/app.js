@@ -219,7 +219,7 @@ function viewHome() {
   <section class="hero">
     <span class="eyebrow">Amphibiens de Guyane</span>
     <h1 style="margin:0"><img class="hero-logo" src="assets/logo-kk-${matchMedia('(prefers-color-scheme: light)').matches ? 'noir' : 'blanc'}.png" alt="Krapo Kwizz"></h1>
-    <p class="lede">Apprends à reconnaître les grenouilles et crapauds de Guyane à l'oreille et à l'œil, avant d'aller les écouter en forêt.</p>
+    <p class="lede">Apprends à reconnaître les amphibiens de Guyane à l'oreille et à l'œil, avant d'aller les chercher en forêt.</p>
   </section>
   ${dailyCardHTML()}
   <div class="modes" role="group" aria-label="Type de jeu">
