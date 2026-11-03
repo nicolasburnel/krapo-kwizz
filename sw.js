@@ -1,9 +1,9 @@
 // Krapo Kwizz — fonctionnement hors connexion.
 // Augmentez VERSION à chaque modification du code (css/js/html) pour forcer la mise à jour.
-const VERSION = 'kk-app-v4';
+const VERSION = 'kk-app-v5';
 const MEDIA = 'kk-media-v1';
 const SHELL = ['./', 'index.html', 'css/style.css', 'js/app.js', 'data/especes.csv', 'manifest.webmanifest',
-  'assets/logo-cerato-blanc.png', 'assets/logo-cerato-noir.png', 'assets/icon-192.png', 'assets/icon-512.png',
+  'assets/logo-cerato-blanc.png', 'assets/logo-cerato-noir.png', 'assets/icon-kk-192.png', 'assets/icon-kk-512.png', 'assets/logo-kk-noir.png', 'assets/logo-kk-blanc.png', 'assets/mark-kk-noir.png', 'assets/mark-kk-blanc.png',
   'assets/fonts/nunito-latin-400-normal.woff2', 'assets/fonts/nunito-latin-400-italic.woff2', 'assets/fonts/nunito-latin-600-normal.woff2',
   'assets/fonts/nunito-latin-600-italic.woff2', 'assets/fonts/nunito-latin-700-normal.woff2', 'assets/fonts/nunito-latin-800-normal.woff2',
   'assets/fonts/barlow-condensed-latin-600-normal.woff2', 'assets/fonts/barlow-condensed-latin-700-normal.woff2'];

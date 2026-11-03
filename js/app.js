@@ -189,7 +189,7 @@ function viewHome() {
   app.innerHTML = `
   <section class="hero">
     <span class="eyebrow">Amphibiens de Guyane</span>
-    <h1 class="display">Krapo Kwizz</h1>
+    <h1 style="margin:0"><img class="hero-logo" src="assets/logo-kk-${matchMedia('(prefers-color-scheme: light)').matches ? 'noir' : 'blanc'}.png" alt="Krapo Kwizz"></h1>
     <p class="lede">Apprends à reconnaître les grenouilles et crapauds de Guyane à l'oreille et à l'œil, avant d'aller les écouter en forêt.</p>
     <div class="with"><img src="assets/logo-cerato-${matchMedia('(prefers-color-scheme: light)').matches ? 'noir' : 'blanc'}.png" alt="">avec Cerato, association herpétologique de Guyane</div>
   </section>
@@ -572,7 +572,7 @@ function viewAbout() {
   const light = matchMedia('(prefers-color-scheme: light)').matches;
   const authors = [...new Set(SP.map(s => s.soundBy).filter(Boolean).flatMap(a => a.split(/ & |, /)))].sort((a, b) => a.split(' ').pop().localeCompare(b.split(' ').pop()));
   $('#app').innerHTML = `<article class="prose">
-    <div class="about-hero"><img src="assets/logo-cerato-${light ? 'noir' : 'blanc'}.png" alt="Logo de Cerato, association herpétologique de Guyane"><div><span class="eyebrow">À propos</span><h1 class="display" style="font-size:clamp(2.2rem,8vw,3.2rem)">Pourquoi Krapo Kwizz</h1></div></div>
+    <div class="about-hero"><img class="kk" src="assets/logo-kk-${light ? 'noir' : 'blanc'}.png" alt="Logo de Krapo Kwizz"><div><span class="eyebrow">À propos</span><h1 class="display" style="font-size:clamp(2.2rem,8vw,3.2rem)">Pourquoi Krapo Kwizz</h1></div></div>
     <p>Je m'appelle Nicolas Burnel, je suis herpétologue en Guyane.</p>
     <p>En arrivant en Guyane, et même avant d'y poser les pieds, je cherchais à développer mes connaissances sur l'herpétofaune Guyanaise, pour la reconnaissance visuelle, pas de souci : le guide pdf d'identification réalisé par Elven Remérand et Quentin Uriot était un superbe outil. Par contre, pour l'écoute, c'était une autre histoire.</p>
     <p>Alors pour l'histoire : avec Louis Gonin camarade et ami du BTS GPN de Matiti, on a téléchargé la sonothèque disponible sur le site de Cerato, et on se faisait des tests : on faisait défiler la liste au hasard, on lançait un chant, et l'autre devait trouver l'espèce. Ça fonctionnait, mais c'était clairement simplifiable.</p>
@@ -595,7 +595,7 @@ function viewAbout() {
     ${(() => { const extra = [...new Set(SP.map(s => s.photoBy).filter(c => c && !c.startsWith('Guide')).flatMap(c => c.split(/ & |, /)))]; return extra.length ? `<p><b>Autres photos :</b> ${extra.map(esc).join(', ')}. Le crédit de chaque photo est indiqué sur la fiche de l'espèce.</p>` : ''; })()}
     <p><b>Taxonomie :</b> noms mis à jour en 2026, dont <i>Pristimantis flavus</i> et <i>P. fouqueti</i> (Mônico et al. 2025), <i>P. grandoculis</i>, <i>Scinax</i> cf. <i>cruentomma</i> et <i>Otophryne</i> aff. <i>robusta</i>.</p>
     <p><b>Licence :</b> les contenus (sons, photos, textes) sont partagés sous licence <a href="https://creativecommons.org/licenses/by-nc/4.0/deed.fr" target="_blank" rel="noopener">Creative Commons BY-NC 4.0</a>. Tu peux les réutiliser en citant leurs auteurs, sans usage commercial.</p>
-    <p class="small">Krapo Kwizz est publié avec Cerato, association herpétologique de Guyane. Conception : Nicolas Burnel.</p>
+    <p class="small cerato-foot"><img src="assets/logo-cerato-${light ? 'noir' : 'blanc'}.png" alt="Logo de Cerato"><span>Krapo Kwizz est publié avec Cerato, association herpétologique de Guyane. Conception : Nicolas Burnel.</span></p>
   </article>`;
   $('#dl').onclick = downloadAll;
 }

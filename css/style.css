@@ -62,14 +62,15 @@ i.sp,.sp{font-style:italic}
 .topbar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top,0px)}
 .topbar-in{display:flex;align-items:center;gap:16px;height:58px}
 .brand{font-family:var(--f-display);font-weight:700;font-size:1.55rem;letter-spacing:.02em;color:var(--fg);text-decoration:none;display:flex;align-items:center;gap:10px;margin-right:auto;text-transform:uppercase}
-.brand-mark{width:30px;height:30px;background:url(../assets/logo-cerato-blanc.png) center/contain no-repeat}
-@media (prefers-color-scheme: light){.brand-mark{background-image:url(../assets/logo-cerato-noir.png)}}
+.brand-mark{width:44px;height:30px;background:url(../assets/mark-kk-blanc.png) center/contain no-repeat}
+@media (prefers-color-scheme: light){.brand-mark{background-image:url(../assets/mark-kk-noir.png)}}
 .nav{display:flex;gap:4px}
 .nav a{display:flex;align-items:center;gap:7px;padding:8px 12px;border-radius:999px;color:var(--muted);text-decoration:none;font-weight:700;font-size:.95rem}
 .nav a svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .nav a[data-nav="jouer"] svg{fill:currentColor;stroke:none}
 .nav a[aria-current="page"]{color:var(--fg);background:var(--accent-soft)}
 @media (max-width:720px){
+  .topbar{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--bg)}
   .nav{position:fixed;left:0;right:0;bottom:0;z-index:30;justify-content:space-around;gap:0;background:color-mix(in srgb,var(--bg-2) 94%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);height:calc(var(--nav-h) + env(safe-area-inset-bottom,0px));padding:6px max(8px,env(safe-area-inset-left,0px)) env(safe-area-inset-bottom,0px) max(8px,env(safe-area-inset-right,0px))}
   .nav a{flex-direction:column;gap:2px;font-size:.72rem;padding:6px 10px;border-radius:12px;flex:1;max-width:110px}
   .nav a[aria-current="page"]{background:transparent;color:var(--accent)}
@@ -317,3 +318,8 @@ details.fams .chips{margin-top:10px}
 .offline .meter{height:6px}
 
 .toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + 20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:700;z-index:60;font-size:.9rem;max-width:90vw;text-align:center}
+
+.hero-logo{width:min(250px,62vw);height:auto;margin:4px 0 2px}
+.about-hero img.kk{width:120px;height:auto}
+.cerato-foot{display:flex;align-items:center;gap:10px}
+.cerato-foot img{width:40px;height:40px;flex:none}
