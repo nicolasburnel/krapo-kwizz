@@ -36,6 +36,7 @@ C'est le cœur de l'appli : une ligne par espèce. GitHub l'affiche comme un tab
 | `son` | nom du fichier dans le dossier `sons/` (vide = pas de chant) | `scinax-cynocephalus.mp3` |
 | `auteur_son` | auteur de l'enregistrement | `Christian Marty & Philippe Gaucher` |
 | `photos` | fichiers du dossier `photos/`, séparés par ` \| ` | `scinax-cynocephalus-1.webp \| scinax-cynocephalus-2.webp` |
+| `carte` | carte de répartition dans le dossier `cartes/` (affichée sur la fiche et en indice) | `boana-boans.webp` |
 | `credit_photos` | auteur(s) des photos, affiché sur la fiche | `Elven Remérand` |
 | `habitat`, `taille` | utilisés pour les indices et la fiche | `Marais (littoral)` |
 | `criteres` | critères d'identification, séparés par ` \| ` | `Museau court \| Iris rouge` |

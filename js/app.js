@@ -99,7 +99,7 @@ async function loadData() {
   const rows = parseCSV(await res.text());
   SP = rows.map(r => ({
     id: r.id, name: r.nom, vern: r.nom_vernaculaire, family: r.famille, page: r.page_guide,
-    sound: r.son, soundBy: r.auteur_son, photos: list(r.photos), photoBy: r.credit_photos || '', habitat: r.habitat, size: r.taille,
+    sound: r.son, soundBy: r.auteur_son, photos: list(r.photos), photoBy: r.credit_photos || '', map: r.carte || '', habitat: r.habitat, size: r.taille,
     crit: list(r.criteres), confNames: list(r.confusions), comment: r.commentaire, old: r.ancien_nom,
   })).filter(s => s.id && s.name);
   BYID = Object.fromEntries(SP.map(s => [s.id, s]));
@@ -112,7 +112,7 @@ async function loadData() {
   } catch (e) { AMB = []; }
 }
 const hasSound = s => !!s.sound, hasPhoto = s => s.photos.length > 0;
-const soundURL = s => 'sons/' + s.sound, photoURL = f => 'photos/' + f;
+const soundURL = s => 'sons/' + s.sound, photoURL = f => 'photos/' + f, mapURL = s => 'cartes/' + s.map;
 const pickPhoto = s => s.photos[Math.random() * s.photos.length | 0];
 
 /* ---------------- audio + spectrogramme ---------------- */
@@ -371,6 +371,7 @@ function renderStage() {
 }
 function hintList(s) {
   const h = [['Famille', s.family]];
+  if (s.map) h.push(['Répartition', `<img class="hint-map" src="${mapURL(s)}" alt="Carte de répartition en Guyane"><span class="hint-cap">En vert : zone où l'espèce est connue</span>`]);
   if (s.habitat || s.size) h.push(['Milieu', [s.habitat, s.size].filter(Boolean).join(' · ')]);
   if (Game.cfg.mode === 'photo' && s.crit.length) h.push(['Critère', s.crit[0]]);
   if (Game.cfg.mode === 'ecoute' && s.comment) h.push(['Écologie', s.comment.replace(new RegExp(s.vern, 'gi'), '…')]);
@@ -380,7 +381,7 @@ function hintList(s) {
 function hintBarHTML() {
   const g = Game, hl = hintList(g.cur);
   return `<div class="hintbar"><button type="button" class="hint-btn" id="hintbtn"${g.hints >= hl.length || g.locked ? ' disabled' : ''}>Indice${g.hints < hl.length ? ` (−${CFG.hintCost} pts)` : ''}</button>
-    <div class="hints">${hl.slice(0, g.hints).map(([k, v]) => `<div><b>${k}</b>${k === 'Genre' ? v : esc(v)}</div>`).join('')}</div></div>`;
+    <div class="hints">${hl.slice(0, g.hints).map(([k, v]) => `<div${k === 'Répartition' ? ' class="hint-mapbox"' : ''}><b>${k}</b>${k === 'Genre' || k === 'Répartition' ? v : esc(v)}</div>`).join('')}</div></div>`;
 }
 function useHint() {
   const g = Game; if (g.locked) return; const hl = hintList(g.cur); if (g.hints >= hl.length) return;
@@ -576,6 +577,7 @@ function openSheet(id, fromRoute) {
       <div class="title"><span class="eyebrow">${esc(s.family)}</span><h2>${sciHTML(s.name)}</h2><span class="vn">${esc(s.vern)}</span>${s.old ? `<span class="old">Nom dans le guide 2023 : ${sciHTML(s.old)}</span>` : ''}</div>
       ${hasSound(s) ? `<div class="player"><button type="button" class="mini" data-play="${s.id}" aria-label="Écouter">${ICON.play}</button><div class="pt"><b>Chant</b><span>Enregistrement : ${esc(s.soundBy)}</span><div class="pbar"><div id="sheetbar"></div></div></div></div>` : '<p class="muted" style="margin:0">Pas de chant dans la sonothèque pour cette espèce.</p>'}
       ${s.photoBy ? `<p class="small" style="margin:0">Photos : ${esc(s.photoBy)}</p>` : ''}
+      ${s.map ? `<div class="sheet-map"><img src="${mapURL(s)}" alt="Carte de répartition de ${esc(s.name)} en Guyane" loading="lazy"><div><b>Répartition en Guyane</b><span>En vert, la zone où l'espèce est connue, d'après les données de Faune-Guyane.</span></div></div>` : ''}
       <dl class="facts">${s.habitat ? `<dt>Habitat</dt><dd>${esc(s.habitat)}</dd>` : ''}${s.size ? `<dt>Taille</dt><dd>${esc(s.size)}</dd>` : ''}${s.page ? `<dt>Guide</dt><dd>page ${esc(s.page)}</dd>` : ''}</dl>
       ${s.crit.length ? `<div><b>Critères d'identification</b><ul class="crit">${s.crit.map(c => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}
       ${s.conf.length ? `<div><b>Confusions possibles</b><div class="conf" style="margin-top:6px">${s.conf.map(c => `<button type="button" data-goto="${c}">${sciHTML(BYID[c].name)}</button>`).join('')}</div></div>` : ''}
@@ -662,6 +664,7 @@ function viewAbout() {
     <p><b>Chants :</b> sonothèque de l'Atlas des amphibiens de Guyane. Enregistrements de ${authors.map(esc).join(', ')}. L'auteur de chaque chant est indiqué sur la fiche de l'espèce.</p>
     <p><b>Photos, textes et critères d'identification :</b> <i>Guide d'identification des Amphibiens de Guyane</i>, Elven Remérand & Quentin Uriot (2023), et ses photographes : Antoine Fouquet, Augustin Bussac, Arnaud Aury, Axel Marchelie, Benoit Villette, Daniel Baudain, Élodie Courtoie, Elven Remérand, Florent Pouzet, Hugo Foxonet, Maël Dewynter, Philippe Gaucher, Pierre Visquesnel, Quentin Uriot, Sylvain Uriot, Vincent Prémel, Xavier Rufray, ainsi que des photographes du FRAG.</p>
     ${(() => { const extra = [...new Set(SP.map(s => s.photoBy).filter(c => c && !c.startsWith('Guide')).flatMap(c => c.split(/ & |, /)))]; return extra.length ? `<p><b>Autres photos :</b> ${extra.map(esc).join(', ')}. Le crédit de chaque photo est indiqué sur la fiche de l'espèce.</p>` : ''; })()}
+    <p><b>Cartes de répartition :</b> guide d'identification des Amphibiens de Guyane (2023), d'après les données de Faune-Guyane.</p>
     <p><b>Taxonomie :</b> noms mis à jour en 2026, dont <i>Pristimantis flavus</i> et <i>P. fouqueti</i> (Mônico et al. 2025), <i>P. grandoculis</i>, <i>Scinax</i> cf. <i>cruentomma</i> et <i>Otophryne</i> aff. <i>robusta</i>.</p>
     <p><b>Licence :</b> les contenus (sons, photos, textes) sont partagés sous licence <a href="https://creativecommons.org/licenses/by-nc/4.0/deed.fr" target="_blank" rel="noopener">Creative Commons BY-NC 4.0</a>. Tu peux les réutiliser en citant leurs auteurs, sans usage commercial.</p>
     <p class="small">Conception : Nicolas Burnel.</p>
@@ -669,7 +672,7 @@ function viewAbout() {
   $('#dl').onclick = downloadAll;
 }
 async function downloadAll() {
-  const urls = [...SP.filter(hasSound).map(soundURL), ...SP.flatMap(s => s.photos.map(photoURL))];
+  const urls = [...SP.filter(hasSound).map(soundURL), ...SP.flatMap(s => s.photos.map(photoURL)), ...SP.filter(s => s.map).map(mapURL)];
   const bar = $('#dlbar'), msg = $('#dlmsg'); bar.hidden = false; let n = 0, fail = 0;
   if (!('caches' in window)) { msg.textContent = 'Ton navigateur ne permet pas le hors-ligne.'; return; }
   const cache = await caches.open('kk-media-v1');

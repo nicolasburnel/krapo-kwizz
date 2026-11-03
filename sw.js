@@ -1,6 +1,6 @@
 // Krapo Kwizz — fonctionnement hors connexion.
 // Augmentez VERSION à chaque modification du code (css/js/html) pour forcer la mise à jour.
-const VERSION = 'kk-app-v8';
+const VERSION = 'kk-app-v9';
 const MEDIA = 'kk-media-v1';
 const SHELL = ['./', 'index.html', 'css/style.css', 'js/app.js', 'data/especes.csv', 'data/ambiances.csv', 'manifest.webmanifest',
   'assets/icon-kk-192.png', 'assets/icon-kk-512.png', 'assets/logo-kk-noir.png', 'assets/logo-kk-blanc.png', 'assets/mark-kk-noir.png', 'assets/mark-kk-blanc.png',
@@ -15,7 +15,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
-  const isMedia = /\/(sons|photos)\//.test(url.pathname);
+  const isMedia = /\/(sons|photos|cartes)\//.test(url.pathname);
   if (isMedia) {
     // sons et photos : cache d'abord (ils changent rarement de nom)
     e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(hit => hit || fetch(e.request).then(r => {

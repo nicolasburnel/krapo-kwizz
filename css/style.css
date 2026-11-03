@@ -384,3 +384,13 @@ details.fams .chips{margin-top:10px}
 .cbox[aria-pressed="true"][data-c="entendu"]{background:var(--glow);border-color:var(--glow);color:var(--bg)}
 @media (max-width:420px){.cbox{width:54px}.car-sp img,.car-sp .noimg{width:40px;height:40px}}
 @media (max-width:720px){.nav a{padding:6px 4px;font-size:.68rem}}
+
+/* cartes de répartition */
+.hint-mapbox{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:center}
+.hint-mapbox b{grid-column:1/-1}
+.hint-map{width:120px;height:auto;background:#fff;border-radius:10px;padding:4px}
+.hint-cap{font-size:.8rem;color:var(--muted)}
+.sheet-map{display:flex;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px}
+.sheet-map img{width:130px;height:auto;background:#fff;border-radius:10px;padding:4px;flex:none}
+.sheet-map b{display:block}
+.sheet-map span{font-size:.86rem;color:var(--muted)}
