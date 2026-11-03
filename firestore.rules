@@ -1,0 +1,64 @@
+rules_version = '2';
+// Règles de sécurité Firestore de Krapo Kwizz.
+// À coller dans la console Firebase : Firestore Database > Règles > Publier.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isMe(uid) { return signedIn() && request.auth.uid == uid; }
+    function okPseudo(p) { return p is string && p.size() >= 3 && p.size() <= 20; }
+
+    // Profils publics : chacun ne modifie que le sien, le pseudo ne change pas après création.
+    match /profils/{uid} {
+      allow read: if true;
+      allow create: if isMe(uid) && okPseudo(request.resource.data.pseudo);
+      allow update: if isMe(uid) && request.resource.data.pseudo == resource.data.pseudo;
+      allow delete: if isMe(uid);
+    }
+    // Réservation des pseudos (un pseudo = un joueur).
+    match /pseudos/{p} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid && p.size() >= 3 && p.size() <= 40;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+    // Défi du jour : un seul score par joueur et par jour.
+    match /defis/{date}/scores/{uid} {
+      allow read: if true;
+      allow create: if isMe(uid) && request.resource.data.score is int && request.resource.data.score <= 5000;
+      allow delete: if isMe(uid);
+    }
+    // Classements par mode de jeu : meilleur score de chaque joueur.
+    match /classements/{mode}/scores/{uid} {
+      allow read: if true;
+      allow create, update: if isMe(uid) && request.resource.data.score is int && request.resource.data.score <= 200000;
+      allow delete: if isMe(uid);
+    }
+    // Battles à distance.
+    match /battles/{id} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.par.uid == request.auth.uid;
+      allow delete: if signedIn() && resource.data.par.uid == request.auth.uid;
+      match /resultats/{uid} {
+        allow read: if true;
+        allow create: if isMe(uid) && request.resource.data.score is int && request.resource.data.score <= 5000;
+        allow delete: if isMe(uid);
+      }
+    }
+    // Parties en direct.
+    match /salons/{code} {
+      function host() { return get(/databases/$(database)/documents/salons/$(code)).data.hote; }
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.hote == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.hote == request.auth.uid;
+      match /joueurs/{uid} {
+        allow read: if signedIn();
+        allow create: if isMe(uid);
+        allow update: if isMe(uid) || (signedIn() && host() == request.auth.uid);
+        allow delete: if isMe(uid) || (signedIn() && host() == request.auth.uid);
+      }
+      match /reponses/{rid} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      }
+    }
+  }
+}

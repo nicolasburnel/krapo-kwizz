@@ -97,3 +97,20 @@ Settings → Pages → *Build and deployment* : Source « Deploy from a branch �
 Les contenus (sons, photos, textes) sont sous licence **Creative Commons BY-NC 4.0** (attribution, pas d'usage commercial), voir `LICENSE.md`. Le code de l'appli est sous licence MIT.
 
 Contact : nicolasburnel2005@gmail.com
+
+---
+
+## Comptes et jeu à plusieurs (Firebase)
+
+Les fonctions en ligne (profil avec pseudo, comparaison des carnets, classements, battles, parties en direct) utilisent le projet Firebase `krapo-kwizz` : Authentication pour la connexion anonyme ou par lien e-mail, Firestore pour les données, hébergées en Europe. Le code se trouve dans `js/social.js`, la bibliothèque Firebase dans `js/vendor/`. Le compte reste facultatif : sans compte, rien ne quitte l'appareil du joueur.
+
+- **Règles de sécurité** : le fichier `firestore.rules`. Après chaque modification, colle son contenu dans la console Firebase (Firestore Database → Règles → Publier).
+- **Données** : `profils` (un document par joueur), `pseudos` (réservation des pseudos), `defis/{date}/scores`, `classements/{mode}/scores`, `battles/{id}` et `battles/{id}/resultats`, `salons/{code}` avec `joueurs` et `reponses`.
+
+### Modération
+
+1. **Supprimer un pseudo ou un profil inapproprié** : dans la console Firebase, va dans Firestore Database. Supprime le document du joueur dans `profils`, puis son pseudo dans `pseudos`. Le nom du document dans `pseudos` est le pseudo en minuscules, sans accents.
+2. **Empêcher un joueur de revenir** : dans Authentication → Utilisateurs, retrouve l'identifiant (UID) du joueur. C'est le nom de son document dans `profils`. Clique sur les ⋮, puis « Désactiver le compte ».
+3. **Retirer un score** : supprime le document du joueur dans `defis/{date}/scores` ou dans `classements/{mode}/scores`.
+4. **Bloquer des mots dans les pseudos** : ajoute-les à la liste `BAD_WORDS`, en haut de `js/social.js`.
+5. **Ménage** : les salons de parties en direct (`salons`) peuvent être supprimés de temps en temps, ils ne servent plus une fois la partie finie.
