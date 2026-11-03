@@ -13,6 +13,10 @@ const CFG = {
   fauneGuyane: 'https://www.faune-guyane.fr',
   email: 'nicolasburnel2005@gmail.com',
   offlineMB: 30,             // taille approximative de tous les sons + photos
+  dailyLength: 10,          // questions du défi du jour
+  revealSeconds: 10,        // durée du dévoilement de la photo
+  revealBlur: 26,           // flou de départ (px)
+  mareRounds: 5,            // scènes par partie d'ambiance mare
 };
 
 /* ---------------- utilitaires ---------------- */
@@ -46,6 +50,17 @@ function parseCSV(text) {
   const head = rows.shift().map(h => h.trim());
   return rows.filter(r => r.some(x => x.trim())).map(r => Object.fromEntries(head.map((h, i) => [h, (r[i] || '').trim()])));
 }
+function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hashStr(s) { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+const seededShuffle = (a, r) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = r() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+function todayStr(d = new Date()) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+const siteURL = () => location.origin + location.pathname;
+async function shareText(text) {
+  const full = text + '\n' + siteURL();
+  if (navigator.share) { try { await navigator.share({ title: 'Krapo Kwizz', text: full }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(full); toast('Copié ! Colle-le dans un message ou une story.'); }
+  catch (e) { const ta = document.createElement('textarea'); ta.value = full; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast('Copié ! Colle-le dans un message ou une story.'); } catch (e2) { toast('Impossible de copier automatiquement.'); } ta.remove(); }
+}
 const list = s => (s || '').split('|').map(x => x.trim()).filter(Boolean);
 function toast(msg) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
 
@@ -55,13 +70,18 @@ const ICON = {
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   ear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4M7 7v10M11 4v16M15 8v8M19 10.5v3"/></svg>',
   eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3.5M7.5 8 12 3.5 16.5 8"/><path d="M5 12v6.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V12"/></svg>',
+  pond: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="16" rx="9" ry="4"/><path d="M8 11.5c0-2.2 1.8-4 4-4s4 1.8 4 4"/><circle cx="10" cy="8.5" r="1.4"/><circle cx="14" cy="8.5" r="1.4"/></svg>',
+  sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>',
   heart: '<svg viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 7.9 3.6 4.5 7 4.5c2 0 3.6 1.1 5 2.9 1.4-1.8 3-2.9 5-2.9 3.4 0 5.6 3.4 4.3 6.8-1.8 4.6-9.3 9.2-9.3 9.2z"/></svg>',
 };
 
 /* ---------------- stockage local ---------------- */
 const Store = {
-  data: { m: {}, best: {}, last: null, totals: { games: 0, answers: 0, correct: 0 } },
-  load() { try { const d = JSON.parse(localStorage.getItem(CFG.storeKey)); if (d) this.data = Object.assign(this.data, d); } catch (e) {} },
+  data: { m: {}, best: {}, last: null, totals: { games: 0, answers: 0, correct: 0 }, badges: {}, daily: {}, carnet: {}, rec: {} },
+  load() { try { const d = JSON.parse(localStorage.getItem(CFG.storeKey)); if (d) this.data = Object.assign(this.data, d); } catch (e) {} ['badges', 'daily', 'carnet', 'rec'].forEach(k => { this.data[k] = this.data[k] || {}; }); },
+  bump(k, v) { this.data.rec[k] = Math.max(this.data.rec[k] || 0, v); this.save(); },
   save() { try { localStorage.setItem(CFG.storeKey, JSON.stringify(this.data)); } catch (e) {} },
   mastery(id, kind) { return (this.data.m[id] && this.data.m[id][kind]) || { n: 0, c: 0, b: 0 }; },
   record(id, kind, ok) {
@@ -73,7 +93,7 @@ const Store = {
 };
 
 /* ---------------- données ---------------- */
-let SP = [], BYID = {}, FAMS = [];
+let SP = [], BYID = {}, FAMS = [], AMB = [];
 async function loadData() {
   const res = await fetch('data/especes.csv', { cache: 'no-cache' });
   const rows = parseCSV(await res.text());
@@ -86,6 +106,10 @@ async function loadData() {
   const byName = {}; SP.forEach(s => { byName[norm(s.name)] = s.id; if (s.old) byName[norm(s.old)] = s.id; });
   SP.forEach(s => { s.genus = s.name.split(' ')[0]; s.conf = s.confNames.map(n => byName[norm(n)]).filter(Boolean); });
   FAMS = [...new Set(SP.map(s => s.family))].sort((a, b) => a.localeCompare(b));
+  try {
+    const ra = await fetch('data/ambiances.csv', { cache: 'no-cache' });
+    AMB = parseCSV(await ra.text()).map(a => ({ id: a.id, name: a.nom, desc: a.description, ids: list(a.especes).filter(id => BYID[id] && hasSound(BYID[id])) })).filter(a => a.ids.length >= 6);
+  } catch (e) { AMB = []; }
 }
 const hasSound = s => !!s.sound, hasPhoto = s => s.photos.length > 0;
 const soundURL = s => 'sons/' + s.sound, photoURL = f => 'photos/' + f;
@@ -123,7 +147,7 @@ const Spec = {
   },
   loop() {
     this.raf = requestAnimationFrame(() => this.loop());
-    if (!this.cv || !this.cv.isConnected || !Audio.an || !Audio.playing('game')) return;
+    if (!this.cv || !this.cv.isConnected || !Audio.an || !(Audio.playing('game') || Mix.on)) return;
     Audio.an.getByteFrequencyData(Audio.buf);
     const w = this.cv.width, h = this.cv.height, col = 3, max = Math.floor(12000 / (Audio.ctx.sampleRate / 2) * Audio.buf.length);
     this.cx.drawImage(this.cv, col, 0, w - col, h, 0, 0, w - col, h);
@@ -132,7 +156,7 @@ const Spec = {
 };
 
 /* ---------------- réglages ---------------- */
-const DEFAULTS = { mode: 'ecoute', format: 'noms', level: 'inter', rythme: 'serie', fams: [], spectro: true, revision: true, vern: true };
+const DEFAULTS = { mode: 'ecoute', format: 'noms', level: 'inter', rythme: 'serie', fams: [], spectro: true, revision: true, vern: true, reveal: false, mareLevel: 'inter', mareAmb: '' };
 let S = {};
 function loadSettings() { S = Object.assign({}, DEFAULTS, Store.data.last || {}); S.fams = (S.fams || []).filter(f => FAMS.includes(f)); }
 function saveSettings() { Store.data.last = S; Store.save(); }
@@ -142,15 +166,19 @@ const LEVELS = {
   expert: ['Expert', 'Espèces confondables (liste du guide), puis même genre'],
   maitre: ['Maître', 'Aucune proposition : écris le nom exact'],
 };
-const FORMATS = { noms: ['4 noms', 'Choisis le bon nom'], photos: ['4 photos', 'Clique sur la bonne grenouille'], saisie: ['Saisie libre', 'Écris le nom exact'] };
+const FORMATS = { noms: ['4 noms', 'Choisis le bon nom'], photos: ['4 photos', 'Clique sur la bonne grenouille'], inverse: ['Inverse', 'Une photo : retrouve son chant parmi 4'], saisie: ['Saisie libre', 'Écris le nom exact'] };
+const MARE_LEVELS = { decouverte: ['Découverte', '2 espèces chantent ensemble'], inter: ['Intermédiaire', '3 espèces chantent ensemble'], expert: ['Expert', '4 espèces chantent ensemble'] };
+const MARE_N = { decouverte: 2, inter: 3, expert: 4 };
 const RYTHMES = { serie: ['Série', `${CFG.serieLength} questions`], chrono: ['Chrono', `${CFG.chronoSeconds} secondes`], survie: ['Survie', `${CFG.lives} vies`] };
 function isFree() { return S.mode === 'ecoute' ? S.format === 'saisie' : S.level === 'maitre'; }
 function poolFor(cfg = S) {
   return SP.filter(s => (!cfg.fams.length || cfg.fams.includes(s.family)) &&
-    (cfg.mode === 'ecoute' ? hasSound(s) && (cfg.format !== 'photos' || hasPhoto(s)) : hasPhoto(s)));
+    (cfg.mode === 'ecoute' ? hasSound(s) && (!['photos', 'inverse'].includes(cfg.format) || hasPhoto(s)) : hasPhoto(s)));
 }
 function configKey(cfg = S) { return [cfg.mode, cfg.mode === 'ecoute' ? cfg.format : '', cfg.level, cfg.rythme, cfg.fams.length ? cfg.fams.slice().sort().join('+') : 'toutes'].join('/'); }
 function configLabel(key) {
+  if (key === 'daily') return 'Défi du jour';
+  if (key.startsWith('mare/')) { const [, lv, amb] = key.split('/'); const a = AMB.find(x => x.id === amb); return ['Ambiance mare', MARE_LEVELS[lv] ? MARE_LEVELS[lv][0] : lv, a ? a.name : 'ambiances au hasard'].join(' · '); }
   const [mode, format, level, rythme, fams] = key.split('/');
   const parts = [mode === 'ecoute' ? 'Écoute' : 'Photo'];
   if (format) parts.push(FORMATS[format][0]);
@@ -169,6 +197,7 @@ function route() {
   $$('.nav a').forEach(a => { if (a.dataset.nav === view) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   closeSheet();
   if (view === 'especes') viewSpecies(arg);
+  else if (view === 'carnet') viewCarnet();
   else if (view === 'progres') viewProgress();
   else if (view === 'apropos') viewAbout();
   else if (view === 'partie' && Game) {/* déjà affiché */}
@@ -193,11 +222,13 @@ function viewHome() {
     <p class="lede">Apprends à reconnaître les grenouilles et crapauds de Guyane à l'oreille et à l'œil, avant d'aller les écouter en forêt.</p>
     <div class="with"><img src="assets/logo-cerato-${matchMedia('(prefers-color-scheme: light)').matches ? 'noir' : 'blanc'}.png" alt="">avec Cerato, association herpétologique de Guyane</div>
   </section>
+  ${dailyCardHTML()}
   <div class="modes" role="group" aria-label="Type de jeu">
     <button type="button" class="mode" data-mode="ecoute" aria-pressed="${S.mode === 'ecoute'}"><span class="ico">${ICON.ear}</span><b>Écoute</b><span>Un chant, à toi de trouver qui chante.</span></button>
     <button type="button" class="mode" data-mode="photo" aria-pressed="${S.mode === 'photo'}"><span class="ico">${ICON.eye}</span><b>Photo</b><span>Une photo, à toi de nommer l'espèce.</span></button>
+    ${AMB.length ? `<button type="button" class="mode wide" data-mode="mare" aria-pressed="${S.mode === 'mare'}"><span class="ico">${ICON.pond}</span><b>Ambiance mare</b><span>Plusieurs espèces chantent ensemble, comme sur le terrain : qui est là ?</span></button>` : ''}
   </div>
-  <section class="setup" aria-label="Réglages de la partie">
+  ${S.mode === 'mare' ? mareSetupHTML() : `<section class="setup" aria-label="Réglages de la partie">
     ${S.mode === 'ecoute' ? `<div class="opt"><span class="lbl">Réponse</span>${segHTML('seg-format', FORMATS, S.format)}<p class="desc">${FORMATS[S.format][1]}.</p></div>` : ''}
     ${!(S.mode === 'ecoute' && S.format === 'saisie') ? `<div class="opt"><span class="lbl">Difficulté</span>${segHTML('seg-level', levelOpts, S.level, Object.keys(levelOpts).length === 4 ? 'wrap4' : '')}<p class="desc">${LEVELS[S.level][1]}.</p></div>` : ''}
     <div class="opt"><span class="lbl">Rythme</span>${segHTML('seg-rythme', RYTHMES, S.rythme, 'withsub')}</div>
@@ -207,20 +238,23 @@ function viewHome() {
     </details></div>
     <div class="toggles">
       ${S.mode === 'ecoute' ? `<label class="toggle"><span>Spectrogramme<small>Voir le chant défiler pendant l'écoute</small></span><input type="checkbox" class="switch" id="t-spectro"${S.spectro ? ' checked' : ''}></label>` : ''}
-      ${!isFree() && !(S.mode === 'ecoute' && S.format === 'photos') ? `<label class="toggle"><span>Noms vernaculaires<small>Afficher « Rainette ponctuée » sous le nom scientifique</small></span><input type="checkbox" class="switch" id="t-vern"${S.vern ? ' checked' : ''}></label>` : ''}
+      ${S.mode === 'photo' ? `<label class="toggle"><span>Photo qui se dévoile<small>La photo est floue puis devient nette : plus tu réponds tôt, plus tu gagnes de points</small></span><input type="checkbox" class="switch" id="t-reveal"${S.reveal ? ' checked' : ''}></label>` : ''}
+      ${!isFree() && !(S.mode === 'ecoute' && ['photos', 'inverse'].includes(S.format)) ? `<label class="toggle"><span>Noms vernaculaires<small>Afficher « Rainette ponctuée » sous le nom scientifique</small></span><input type="checkbox" class="switch" id="t-vern"${S.vern ? ' checked' : ''}></label>` : ''}
       <label class="toggle"><span>Révision ciblée<small>Les espèces que tu rates reviennent plus souvent</small></span><input type="checkbox" class="switch" id="t-rev"${S.revision ? ' checked' : ''}></label>
     </div>
     <div class="start"><div><div class="count">${n} espèce${n > 1 ? 's' : ''} dans cette partie</div>${best ? `<div class="best">Record : ${best} pts</div>` : ''}</div>
       <button type="button" class="btn primary big" id="go"${n < 4 && !isFree() ? ' disabled' : ''}>Jouer</button></div>
     ${n < 4 && !isFree() ? '<p class="desc">Choisis au moins une famille de plus : il faut 4 espèces pour les propositions.</p>' : ''}
-  </section>`;
+  </section>`}`;
   $$('.mode', app).forEach(b => b.onclick = () => { S.mode = b.dataset.mode; if (S.mode === 'photo' && S.format === 'saisie') S.level = 'maitre'; saveSettings(); viewHome(); });
+  bindDailyCard();
+  if (S.mode === 'mare') { bindMareSetup(); return; }
   const seg = (id, key) => { const el = $('#' + id); if (el) el.onclick = e => { const b = e.target.closest('button'); if (!b) return; S[key] = b.dataset.v; saveSettings(); viewHome(); }; };
   seg('seg-format', 'format'); seg('seg-level', 'level'); seg('seg-rythme', 'rythme');
   $('#famchips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; const f = b.dataset.f; S.fams = S.fams.includes(f) ? S.fams.filter(x => x !== f) : [...S.fams, f]; saveSettings(); viewHome(); $('details.fams').open = true; };
   const fr = $('#famreset'); if (fr) fr.onclick = () => { S.fams = []; saveSettings(); viewHome(); };
   const tg = (id, key) => { const el = $('#' + id); if (el) el.onchange = () => { S[key] = el.checked; saveSettings(); }; };
-  tg('t-spectro', 'spectro'); tg('t-vern', 'vern'); tg('t-rev', 'revision');
+  tg('t-spectro', 'spectro'); tg('t-vern', 'vern'); tg('t-rev', 'revision'); tg('t-reveal', 'reveal');
   $('#go').onclick = () => startGame();
 }
 
@@ -236,11 +270,11 @@ function buildDeck(pool, n) {
   while (deck.length < n) { const s = weightedPick(pool, used); used.add(s.id); deck.push(s.id); }
   return deck;
 }
-function distractors(cur, pool) {
+function distractors(cur, pool, level = S.level) {
   const others = pool.filter(s => s.id !== cur.id);
   let order;
-  if (S.level === 'decouverte') order = [shuffle(others.filter(s => s.family !== cur.family)), shuffle(others.filter(s => s.family === cur.family))];
-  else if (S.level === 'inter') order = [shuffle(others.filter(s => s.family === cur.family)), shuffle(others.filter(s => s.family !== cur.family))];
+  if (level === 'decouverte') order = [shuffle(others.filter(s => s.family !== cur.family)), shuffle(others.filter(s => s.family === cur.family))];
+  else if (level === 'inter') order = [shuffle(others.filter(s => s.family === cur.family)), shuffle(others.filter(s => s.family !== cur.family))];
   else order = [shuffle(others.filter(s => cur.conf.includes(s.id))), shuffle(others.filter(s => s.genus === cur.genus && !cur.conf.includes(s.id))),
     shuffle(others.filter(s => s.family === cur.family && s.genus !== cur.genus && !cur.conf.includes(s.id))), shuffle(others.filter(s => s.family !== cur.family))];
   const out = []; for (const g of order) for (const s of g) { if (out.length >= 3) break; if (!out.includes(s)) out.push(s); }
@@ -251,10 +285,10 @@ function startGame(onlyIds) {
   const pool = onlyIds ? full.filter(s => onlyIds.includes(s.id)) : full;
   if (!pool.length) return toast('Aucune espèce ne correspond à ces réglages.');
   Game = {
-    cfg: { ...S }, key: configKey(), pool, distractPool: S.mode === 'ecoute' && S.format === 'photos' ? SP.filter(s => hasSound(s) && hasPhoto(s)) : (S.mode === 'ecoute' ? SP.filter(hasSound) : SP.filter(hasPhoto)),
+    cfg: { ...S }, key: configKey(), pool, distractPool: S.mode === 'ecoute' && ['photos', 'inverse'].includes(S.format) ? SP.filter(s => hasSound(s) && hasPhoto(s)) : (S.mode === 'ecoute' ? SP.filter(hasSound) : SP.filter(hasPhoto)),
     deck: S.rythme === 'serie' ? buildDeck(pool, onlyIds ? pool.length : CFG.serieLength) : [], idx: -1, recent: [],
     score: 0, streak: 0, bestStreak: 0, correct: 0, answered: 0, lives: CFG.lives, misses: [], done: false,
-    t0: 0, timer: 0, cur: null, choices: [], hints: 0, locked: false, photo: null, revisit: onlyIds ? true : false,
+    t0: 0, timer: 0, cur: null, choices: [], hints: 0, locked: false, photo: null, revisit: onlyIds ? true : false, grid: [],
   };
   Store.data.totals.games++; Store.save();
   if (location.hash !== '#partie') { history.pushState(null, '', '#partie'); }
@@ -293,7 +327,8 @@ function updateHUD() {
   const g = Game;
   $('#gscore').textContent = g.score;
   $('#gcombo').textContent = g.streak >= 3 ? `Série ×${g.streak}` : '';
-  if (g.cfg.rythme === 'serie') { $('#gcount').textContent = `Question ${Math.min(g.idx + 1, g.deck.length)} / ${g.deck.length}`; $('#gbar').style.width = (g.idx / g.deck.length * 100) + '%'; }
+  if (g.fixed) { $('#gcount').textContent = `Défi du jour · ${Math.min(g.idx + 1, g.fixed.length)} / ${g.fixed.length}`; $('#gbar').style.width = (g.idx / g.fixed.length * 100) + '%'; }
+  else if (g.cfg.rythme === 'serie') { $('#gcount').textContent = `Question ${Math.min(g.idx + 1, g.deck.length)} / ${g.deck.length}`; $('#gbar').style.width = (g.idx / g.deck.length * 100) + '%'; }
   else if (g.cfg.rythme === 'survie') { $('#gcount').innerHTML = `<span class="lives">${Array.from({ length: CFG.lives }, (_, i) => ICON.heart.replace('<svg', `<svg class="${i < g.lives ? '' : 'off'}"`)).join('')}</span>`; $('#gleft').textContent = `${g.correct} bonne${g.correct > 1 ? 's' : ''} réponse${g.correct > 1 ? 's' : ''}`; $('#gbar').style.width = (g.lives / CFG.lives * 100) + '%'; }
   else { $('#gcount').textContent = `${g.correct} bonne${g.correct > 1 ? 's' : ''} réponse${g.correct > 1 ? 's' : ''}`; }
 }
@@ -301,25 +336,36 @@ function nextQuestion() {
   const g = Game; if (!g || g.done) return;
   g.idx++;
   let cur;
+  if (g.fixed) {
+    if (g.idx >= g.fixed.length) return finish();
+    const q = g.fixed[g.idx]; g.cfg.mode = q.mode; g.cur = BYID[q.id]; g.hints = 0; g.locked = false; g.photo = q.photo; g.choices = q.choices.map(id => BYID[id]);
+    g.qStart = performance.now(); renderGameShell(); updateHUD(); renderStage(); renderAnswers(); $('#fb').innerHTML = '';
+    if (g.cfg.mode === 'ecoute') Audio.toggle(soundURL(g.cur), 'game'); else Audio.stop();
+    return;
+  }
   if (g.cfg.rythme === 'serie') { if (g.idx >= g.deck.length) return finish(); cur = BYID[g.deck[g.idx]]; }
   else { cur = weightedPick(g.pool, new Set(g.recent)); g.recent.push(cur.id); if (g.recent.length > Math.min(12, g.pool.length - 1)) g.recent.shift(); }
   g.cur = cur; g.hints = 0; g.locked = false; g.photo = hasPhoto(cur) ? pickPhoto(cur) : null;
   if (!g.dpool) { const r = g.distractPool.filter(s => g.cfg.fams.includes(s.family)); g.dpool = g.cfg.fams.length && r.length >= 4 ? r : g.distractPool; }
   g.choices = isFreeG() ? [] : distractors(cur, g.dpool);
   updateHUD(); renderStage(); renderAnswers(); $('#fb').innerHTML = '';
-  if (g.cfg.mode === 'ecoute') Audio.toggle(soundURL(cur), 'game');
+  g.qStart = performance.now();
+  if (g.cfg.mode === 'ecoute' && g.cfg.format !== 'inverse') Audio.toggle(soundURL(cur), 'game'); else Audio.stop();
 }
 function isFreeG() { const c = Game.cfg; return c.mode === 'ecoute' ? c.format === 'saisie' : c.level === 'maitre'; }
 function renderStage() {
   const g = Game, cur = g.cur, st = $('#stage');
-  if (g.cfg.mode === 'ecoute') {
+  const inverse = g.cfg.mode === 'ecoute' && g.cfg.format === 'inverse';
+  if (g.cfg.mode === 'ecoute' && !inverse) {
     st.innerHTML = `<div class="listen"><button class="playbig" id="gplay" type="button" aria-label="Écouter le chant">${ICON.play}</button>
       <div class="spec">${g.cfg.spectro ? `<canvas id="spec" width="900" height="220" aria-label="Spectrogramme"></canvas><div class="ax"><span>12 kHz</span><span>6</span><span>0</span></div>` : `<div class="wave" id="wave">${'<i></i>'.repeat(18)}</div>`}
       <div class="time"><span id="tcur">0:00</span><span id="tdur">–:––</span></div></div></div>` + hintBarHTML();
     $('#gplay').onclick = () => Audio.toggle(soundURL(g.cur), 'game');
     if (g.cfg.spectro) Spec.attach($('#spec'));
   } else {
-    st.innerHTML = `<div class="pic"><img src="${photoURL(g.photo)}" alt="Photo de l'espèce à trouver">${cur.photos.length > 1 ? '<button type="button" class="other" id="other">Autre photo</button>' : ''}</div>` + hintBarHTML();
+    const rev = g.cfg.mode === 'photo' && g.cfg.reveal;
+    st.innerHTML = `<div class="pic${rev ? ' reveal' : ''}"><img src="${photoURL(g.photo)}" alt="Photo de l'espèce à trouver">${cur.photos.length > 1 && !rev ? '<button type="button" class="other" id="other">Autre photo</button>' : ''}${inverse ? '<span class="pic-q">Quel est son chant ?</span>' : ''}</div>` + hintBarHTML();
+    if (rev) { const im = $('.pic img'); im.style.filter = `blur(${CFG.revealBlur}px)`; requestAnimationFrame(() => requestAnimationFrame(() => { im.style.transition = `filter ${CFG.revealSeconds}s linear`; im.style.filter = 'blur(0px)'; })); }
     const o = $('#other'); if (o) o.onclick = () => { const others = cur.photos.filter(p => p !== g.photo); g.photo = others[Math.random() * others.length | 0]; $('.pic img').src = photoURL(g.photo); };
   }
   $('#hintbtn').onclick = useHint; syncPlay();
@@ -350,6 +396,15 @@ function renderAnswers() {
     setTimeout(() => { const i = $('#freein'); if (i && matchMedia('(hover:hover)').matches) i.focus(); }, 30);
     return;
   }
+  if (g.cfg.mode === 'ecoute' && g.cfg.format === 'inverse') {
+    box.innerHTML = '<div class="choices sounds">' + g.choices.map((s, i) => `<div class="choice snd" data-id="${s.id}">
+      <button type="button" class="mini" data-inv="${s.id}" aria-label="Écouter le chant ${'ABCD'[i]}">${ICON.play}</button>
+      <span class="sl"><span class="nm">Chant ${'ABCD'[i]}</span><span class="cap vn"></span></span>
+      <button type="button" class="btn pick" data-pick="${s.id}"><span class="k">${i + 1}</span>Choisir</button></div>`).join('') + '</div>';
+    box.onclick = e => { const pl = e.target.closest('[data-inv]'); if (pl) { Audio.toggle(soundURL(BYID[pl.dataset.inv]), 'inv:' + pl.dataset.inv); return; }
+      const pk = e.target.closest('[data-pick]'); if (pk && !g.locked) answer(pk.dataset.pick); };
+    return;
+  }
   const pics = g.cfg.mode === 'ecoute' && g.cfg.format === 'photos';
   box.innerHTML = `<div class="choices ${pics ? 'pics' : 'names'}">` + g.choices.map((s, i) => pics
     ? `<button type="button" class="choice" data-id="${s.id}"><span class="ph"><img src="${photoURL(s.photos[0])}" alt="Proposition ${i + 1}"><span class="k">${i + 1}</span></span><span class="cap"></span></button>`
@@ -372,7 +427,8 @@ function answer(pick, info = {}) {
   Store.record(c.id, g.cfg.mode === 'ecoute' ? 'e' : 'p', ok);
   let pts = 0;
   if (ok || half) {
-    const base = Math.max(20, CFG.basePoints - g.hints * CFG.hintCost) * (half ? .5 : 1);
+    let base = Math.max(20, CFG.basePoints - g.hints * CFG.hintCost) * (half ? .5 : 1);
+    if (g.cfg.mode === 'photo' && g.cfg.reveal) { const f = Math.min(1, (performance.now() - (g.qStart || 0)) / 1000 / CFG.revealSeconds); base *= 1.5 - f; }
     if (ok) { g.streak++; g.bestStreak = Math.max(g.bestStreak, g.streak); g.correct++; }
     pts = Math.round(base * (1 + Math.min(g.streak, 10) * .1));
     g.score += pts;
@@ -382,9 +438,11 @@ function answer(pick, info = {}) {
     if (g.cfg.rythme === 'survie' && !half) g.lives--;
     if (g.cfg.rythme === 'serie' && !g.revisit) { const at = Math.min(g.deck.length, g.idx + 3 + (Math.random() * 3 | 0)); g.deck.splice(at, 0, c.id); }
   }
+  if (g.grid) g.grid.push(ok ? '🟩' : half ? '🟨' : '🟥');
+  const pim = $('.pic.reveal img'); if (pim) { pim.style.transition = 'filter .3s'; pim.style.filter = 'none'; }
   updateHUD();
   $$('.choice').forEach(b => {
-    b.disabled = true;
+    b.disabled = true; $$('[data-pick]', b).forEach(x => x.disabled = true);
     if (b.dataset.id === c.id) b.classList.add('right'); else if (b.dataset.id === pick) b.classList.add('wrong'); else b.classList.add('dim');
     const cap = $('.cap', b); if (cap) { const s = BYID[b.dataset.id]; cap.innerHTML = `<span class="nm">${sciHTML(s.name)}</span><span class="vn">${esc(s.vern)}</span>`; }
   });
@@ -403,7 +461,7 @@ function showFeedback(ok, half, pick, info, pts) {
   else if (!ok && info.typed) detail = `Ta réponse : « ${esc(info.typed)} ».`;
   else if (pick === null) detail = '';
   if (info.typo) detail = `Tu as écrit « ${esc(info.typo)} ».`;
-  const showImg = g.cfg.mode === 'ecoute' && c.photos.length;
+  const showImg = g.cfg.mode === 'ecoute' && g.cfg.format !== 'inverse' && c.photos.length;
   $('#fb').innerHTML = `<div class="fb ${ok ? 'ok' : half ? 'mid' : 'ko'}">
     <span class="verdict">${verdict}${pts ? ` +${pts}` : ''}</span>
     <div class="who">${showImg ? `<img src="${photoURL(c.photos[0])}" alt="">` : ''}<div>
@@ -412,8 +470,8 @@ function showFeedback(ok, half, pick, info, pts) {
       ${detail ? `<div class="sub">${detail}</div>` : ''}</div></div>
     ${g.cfg.rythme === 'chrono' ? '' : `<div class="row">
       <button type="button" class="btn primary" id="next">${g.cfg.rythme === 'survie' && g.lives <= 0 ? 'Voir le résultat' : 'Suivant'}</button>
-      ${g.cfg.mode === 'photo' && hasSound(c) ? `<button type="button" class="btn" id="hear">${ICON.play} Écouter son chant</button>` : ''}
-      ${!ok && pick && BYID[pick] && g.cfg.mode === 'ecoute' ? `<button type="button" class="btn" id="cmp">${ICON.play} Chant de ${sciHTML(BYID[pick].name)}</button>` : ''}
+      ${(g.cfg.mode === 'photo' || g.cfg.format === 'inverse') && hasSound(c) ? `<button type="button" class="btn" id="hear">${ICON.play} Écouter son chant</button>` : ''}
+      ${!ok && pick && BYID[pick] && g.cfg.mode === 'ecoute' && g.cfg.format !== 'inverse' ? `<button type="button" class="btn" id="cmp">${ICON.play} Chant de ${sciHTML(BYID[pick].name)}</button>` : ''}
       <button type="button" class="btn ghost" id="fiche">Fiche</button></div>`}
   </div>`;
   const n = $('#next'); if (n) { n.onclick = () => nextQuestion(); if (matchMedia('(hover:hover)').matches) n.focus({ preventScroll: true }); }
@@ -424,6 +482,11 @@ function showFeedback(ok, half, pick, info, pts) {
 }
 function finish() {
   const g = Game; if (!g || g.done) return; g.done = true; clearInterval(g.timer); Audio.stop();
+  if (g.fixed) return finishDaily(g);
+  if (g.cfg.rythme === 'survie') Store.bump('survie', g.correct);
+  if (g.cfg.rythme === 'chrono') Store.bump('chrono', g.correct);
+  Store.bump('streak', g.bestStreak);
+  if (g.cfg.rythme === 'serie' && !g.revisit && g.answered >= CFG.serieLength && g.correct === g.answered) Store.bump('perfect', 1);
   const prev = Store.data.best[g.key] || 0, record = g.score > prev && g.score > 0 && !g.revisit;
   if (record) { Store.data.best[g.key] = g.score; Store.save(); }
   const pct = g.answered ? Math.round(g.correct / g.answered * 100) : 0;
@@ -437,14 +500,18 @@ function finish() {
       ${g.misses.length ? '<button type="button" class="btn primary" id="redo">Rejouer mes erreurs</button>' : ''}
       <button type="button" class="btn${g.misses.length ? '' : ' primary'}" id="again">Rejouer</button>
       <a class="btn ghost" href="#jouer">Changer de jeu</a>
-    </div></section>`;
+    </div>
+    ${g.answered ? `<div class="row" style="justify-content:center"><button type="button" class="btn ghost" id="share">${ICON.share} Partager mon score</button></div>` : ''}
+    </section>`;
   const misses = g.misses.slice();
+  const sh = $('#share'); if (sh) sh.onclick = () => shareText(`🐸 Krapo Kwizz · ${configLabel(g.key)}\n${g.score} pts · ${g.correct}/${g.answered} bonnes réponses${g.bestStreak >= 3 ? ` · série de ${g.bestStreak}` : ''}\nEt toi, tu reconnais les amphibiens de Guyane ?`);
+  setTimeout(checkBadges, 400);
   Game = null; document.body.classList.remove('in-game');
   const r = $('#redo'); if (r) r.onclick = () => { const keep = S.rythme; S.rythme = 'serie'; startGame(misses); S.rythme = keep; };
   $('#again').onclick = () => startGame();
   bindRows($('#app'));
 }
-function endGame(silent) { if (!Game) return; clearInterval(Game.timer); Game.done = true; Game = null; Audio.stop(); document.body.classList.remove('in-game'); }
+function endGame(silent) { if (!Game) return; clearInterval(Game.timer); Game.done = true; Game = null; Audio.stop(); Mix.stop(); document.body.classList.remove('in-game'); }
 function missRow(s) {
   return `<div class="missrow">${s.photos.length ? `<img src="${photoURL(s.photos[0])}" alt="">` : ''}<div class="t"><b>${sciHTML(s.name)}</b><span>${esc(s.vern)}</span></div>
     ${hasSound(s) ? `<button type="button" class="mini" data-play="${s.id}" aria-label="Écouter ${esc(s.name)}">${ICON.play}</button>` : ''}
@@ -458,13 +525,15 @@ function bindRows(root) {
 }
 function syncPlay() {
   const b = $('#gplay'); if (b) { const on = Audio.playing('game'); b.innerHTML = on ? ICON.pause : ICON.play; b.classList.toggle('on', on); const w = $('#wave'); if (w) w.classList.toggle('on', on); }
+  $$('[data-inv]').forEach(m => { const on = Audio.playing('inv:' + m.dataset.inv); m.classList.toggle('on', on); m.innerHTML = on ? ICON.pause : ICON.play; });
   $$('[data-play]').forEach(m => { const on = Audio.playing('row:' + m.dataset.play) || Audio.playing('sheet:' + m.dataset.play); m.classList.toggle('on', on); m.innerHTML = on ? ICON.pause : ICON.play; });
   if (Audio.owner === 'game') { const tc = $('#tcur'), td = $('#tdur'); if (tc) tc.textContent = mmss(Audio.el.currentTime); if (td) td.textContent = mmss(Audio.el.duration); }
   const sb = $('#sheetbar'); if (sb && Audio.owner && Audio.owner.startsWith('sheet:')) sb.style.width = (Audio.el.currentTime / (Audio.el.duration || 1) * 100) + '%';
 }
 document.addEventListener('keydown', e => {
   if (!Game || Game.done || e.target.tagName === 'INPUT' || $('.sheet-back')) return;
-  if (e.key === ' ' && Game.cfg.mode === 'ecoute') { e.preventDefault(); Audio.toggle(soundURL(Game.cur), 'game'); }
+  if (Game.type === 'mare') return;
+  if (e.key === ' ' && Game.cfg.mode === 'ecoute' && Game.cfg.format !== 'inverse') { e.preventDefault(); Audio.toggle(soundURL(Game.cur), 'game'); }
   else if (/^[1-4]$/.test(e.key) && !Game.locked && Game.choices.length) answer(Game.choices[+e.key - 1].id);
   else if (e.key === 'Enter' && Game.locked && $('#next')) { e.preventDefault(); nextQuestion(); }
   else if ((e.key === 'h' || e.key === 'H') && !Game.locked) useHint();
@@ -548,6 +617,7 @@ function viewProgress() {
         return `<div class="fp"><span>${esc(f)}</span><span title="${mast(e, 'e')} / ${e.length}">${e.length ? `<span class="meter"><div style="width:${pe}%"></div></span>` : '<span class="muted small">–</span>'}</span><span title="${mast(p, 'p')} / ${p.length}">${p.length ? `<span class="meter p"><div style="width:${pp}%"></div></span>` : '<span class="muted small">–</span>'}</span></div>`; }).join('')}
     </div>
     ${recs.length ? `<h2 style="margin-top:26px">Records</h2><div class="records">${recs.map(([k, v]) => `<div class="rec"><span>${esc(configLabel(k))}</span><b>${v}</b></div>`).join('')}</div>` : ''}
+    ${badgesHTML()}
     ${weakList()}
     <div class="row" style="margin-top:26px"><button type="button" class="btn ghost" id="reset">Effacer mes progrès</button><span class="small" id="resetmsg"></span></div>`;
   bindRows($('#app'));
@@ -610,6 +680,276 @@ async function downloadAll() {
   msg.textContent = fail ? `Terminé, ${fail} fichier(s) n'ont pas pu être téléchargés. Réessaie avec une meilleure connexion.` : 'Tout est prêt : tu peux jouer sans connexion.';
 }
 
+/* ---------------- défi du jour ---------------- */
+function dailyQuestions(date) {
+  const r = rng(hashStr('krapo-kwizz:' + date));
+  const sndPool = SP.filter(hasSound), phoPool = SP.filter(hasPhoto);
+  const half = Math.ceil(CFG.dailyLength / 2);
+  const eco = seededShuffle(sndPool, r).slice(0, half);
+  const pho = seededShuffle(phoPool.filter(s => !eco.includes(s)), r).slice(0, CFG.dailyLength - half);
+  const qs = [];
+  for (let i = 0; i < CFG.dailyLength; i++) {
+    const mode = i % 2 === 0 ? 'ecoute' : 'photo';
+    const cur = mode === 'ecoute' ? eco[i >> 1] : pho[i >> 1]; if (!cur) continue;
+    const pool = mode === 'ecoute' ? sndPool : phoPool;
+    const fam = seededShuffle(pool.filter(s => s.id !== cur.id && s.family === cur.family), r);
+    const rest = seededShuffle(pool.filter(s => s.id !== cur.id && s.family !== cur.family), r);
+    const choices = seededShuffle([cur, ...[...fam, ...rest].slice(0, 3)], r).map(s => s.id);
+    qs.push({ mode, id: cur.id, choices, photo: hasPhoto(cur) ? cur.photos[r() * cur.photos.length | 0] : null });
+  }
+  return qs;
+}
+function dailyStreak() {
+  let n = 0; const d = new Date();
+  if (!Store.data.daily[todayStr(d)]) d.setDate(d.getDate() - 1);
+  while (Store.data.daily[todayStr(d)]) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+function dailyShareText(res, date) {
+  const d = new Date(date + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+  return `🐸 Krapo Kwizz · défi du ${d}\n${res.grid.join('')}\n${res.correct}/${res.n} · ${res.score} pts`;
+}
+function dailyCardHTML() {
+  const date = todayStr(), res = Store.data.daily[date], st = dailyStreak();
+  return `<section class="daily" aria-label="Défi du jour">
+    <div class="daily-ico">${ICON.sun}</div>
+    <div class="daily-t"><b>Défi du jour</b>
+      ${res ? `<span>${res.grid.join('')} · ${res.correct}/${res.n} · ${res.score} pts</span><span class="muted">Nouveau défi demain${st > 1 ? ` · ${st} jours d'affilée` : ''}</span>`
+            : `<span>${CFG.dailyLength} questions, chants et photos, les mêmes pour tout le monde aujourd'hui.${st ? ` Série : ${st} jour${st > 1 ? 's' : ''}.` : ''}</span>`}
+    </div>
+    ${res ? `<button type="button" class="btn" id="dshare">${ICON.share} Partager</button>` : `<button type="button" class="btn primary" id="dgo">Relever le défi</button>`}
+  </section>`;
+}
+function bindDailyCard() {
+  const go = $('#dgo'); if (go) go.onclick = startDaily;
+  const sh = $('#dshare'); if (sh) sh.onclick = () => { const d = todayStr(); shareText(dailyShareText(Store.data.daily[d], d)); };
+}
+function startDaily() {
+  const date = todayStr(); if (Store.data.daily[date]) return toast('Tu as déjà relevé le défi du jour, reviens demain !');
+  const fixed = dailyQuestions(date);
+  Game = { cfg: { ...S, format: 'noms', level: 'inter', rythme: 'serie', revision: false, fams: [], reveal: false }, key: 'daily', date, fixed, pool: [], deck: fixed.map(q => q.id), idx: -1,
+    recent: [], score: 0, streak: 0, bestStreak: 0, correct: 0, answered: 0, lives: CFG.lives, misses: [], done: false, timer: 0, cur: null, choices: [], hints: 0, locked: false, photo: null, revisit: true, grid: [] };
+  Store.data.totals.games++; Store.save();
+  history.pushState(null, '', '#partie'); document.body.classList.add('in-game'); $$('.nav a').forEach(a => a.removeAttribute('aria-current'));
+  nextQuestion();
+}
+function finishDaily(g) {
+  const res = { score: g.score, correct: g.correct, n: g.fixed.length, grid: g.grid };
+  Store.data.daily[g.date] = res; Store.bump('dailies', Object.keys(Store.data.daily).length); Store.bump('dailyStreak', dailyStreak()); Store.save();
+  $('#app').innerHTML = `<section class="end">
+    <span class="eyebrow">Défi du jour</span>
+    <div class="scorebig">${g.correct}/${res.n}</div><div class="grid-emoji">${res.grid.join('')}</div>
+    <div class="muted">${g.score} points${dailyStreak() > 1 ? ` · ${dailyStreak()} jours d'affilée` : ''}</div>
+    ${g.misses.length ? `<h2 style="text-align:left;margin-top:8px">À revoir</h2><div class="misslist">${g.misses.map(id => missRow(BYID[id])).join('')}</div>` : '<p class="muted">Aucune erreur, chapeau.</p>'}
+    <div class="row" style="justify-content:center"><button type="button" class="btn primary" id="share">${ICON.share} Partager mon résultat</button><a class="btn ghost" href="#jouer">Retour</a></div>
+    <p class="small">Un nouveau défi t'attend demain.</p></section>`;
+  Game = null; document.body.classList.remove('in-game');
+  $('#share').onclick = () => shareText(dailyShareText(res, g.date));
+  bindRows($('#app')); setTimeout(checkBadges, 400);
+}
+
+/* ---------------- ambiance mare ---------------- */
+const Mix = {
+  on: false, nodes: [], cache: {},
+  async load(url) { if (this.cache[url]) return this.cache[url]; const r = await fetch(url); const b = await Audio.ctx.decodeAudioData(await r.arrayBuffer()); return (this.cache[url] = b); },
+  async play(species) {
+    Audio.graph(); Audio.stop(); this.stop(); if (!Audio.ctx) return;
+    const tok = this.tok = (this.tok || 0) + 1; this.on = true; syncMare();
+    const bufs = await Promise.all(species.map(s => this.load(soundURL(s)).catch(() => null)));
+    if (tok !== this.tok) return;
+    const t0 = Audio.ctx.currentTime + .05;
+    bufs.forEach((b, i) => {
+      if (!b) return;
+      const src = Audio.ctx.createBufferSource(); src.buffer = b; src.loop = true;
+      const g = Audio.ctx.createGain(); g.gain.value = .55 + Math.random() * .4;
+      const pan = Audio.ctx.createStereoPanner ? Audio.ctx.createStereoPanner() : null;
+      if (pan) { pan.pan.value = (i / Math.max(1, bufs.length - 1) - .5) * 1.2; src.connect(g); g.connect(pan); pan.connect(Audio.an); } else { src.connect(g); g.connect(Audio.an); }
+      src.start(t0 + Math.random() * 1.5, Math.random() * b.duration); this.nodes.push(src);
+    });
+    this.on = true; syncMare();
+  },
+  stop() { this.tok = (this.tok || 0) + 1; this.nodes.forEach(n => { try { n.stop(); } catch (e) {} }); this.nodes = []; this.on = false; syncMare(); },
+};
+function syncMare() { const b = $('#mplay'); if (b) { b.innerHTML = Mix.on ? ICON.pause : ICON.play; b.classList.toggle('on', Mix.on); } }
+function mareSetupHTML() {
+  const best = Store.data.best[`mare/${S.mareLevel}/${S.mareAmb || 'random'}`];
+  return `<section class="setup" aria-label="Réglages de l'ambiance mare">
+    <p class="desc" style="font-size:.95rem">Plusieurs espèces chantent en même temps, comme une vraie nuit de terrain. Les espèces sont tirées dans un même milieu : elles peuvent réellement chanter ensemble. Coche toutes celles que tu entends.</p>
+    <div class="opt"><span class="lbl">Difficulté</span>${segHTML('seg-mlevel', MARE_LEVELS, S.mareLevel, 'withsub')}</div>
+    <div class="opt"><span class="lbl">Milieu</span><div class="chips" id="ambchips">
+      <button type="button" class="chip" data-a="" aria-pressed="${!S.mareAmb}">Au hasard</button>
+      ${AMB.map(a => `<button type="button" class="chip" data-a="${a.id}" aria-pressed="${S.mareAmb === a.id}">${esc(a.name)}<span class="n">${a.ids.length}</span></button>`).join('')}</div>
+      ${S.mareAmb ? `<p class="desc">${esc(AMB.find(a => a.id === S.mareAmb).desc)}</p>` : ''}</div>
+    <div class="toggles"><label class="toggle"><span>Spectrogramme<small>Voir les chants défiler pendant l'écoute</small></span><input type="checkbox" class="switch" id="t-spectro"${S.spectro ? ' checked' : ''}></label></div>
+    <div class="start"><div><div class="count">${CFG.mareRounds} scènes</div>${best ? `<div class="best">Record : ${best} pts</div>` : ''}</div>
+      <button type="button" class="btn primary big" id="go">Jouer</button></div>
+  </section>`;
+}
+function bindMareSetup() {
+  $('#seg-mlevel').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.mareLevel = b.dataset.v; saveSettings(); viewHome(); };
+  $('#ambchips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; S.mareAmb = b.dataset.a; saveSettings(); viewHome(); };
+  $('#t-spectro').onchange = e => { S.spectro = e.target.checked; saveSettings(); };
+  $('#go').onclick = startMare;
+}
+function startMare() {
+  const n = MARE_N[S.mareLevel] || 3;
+  Game = { type: 'mare', cfg: { ...S }, key: `mare/${S.mareLevel}/${S.mareAmb || 'random'}`, n, round: 0, score: 0, found: 0, total: 0, perfect: 0, misses: [], done: false, timer: 0, locked: false };
+  Store.data.totals.games++; Store.save();
+  history.pushState(null, '', '#partie'); document.body.classList.add('in-game'); $$('.nav a').forEach(a => a.removeAttribute('aria-current'));
+  nextScene();
+}
+function nextScene() {
+  const g = Game; if (!g || g.done) return;
+  if (g.round >= CFG.mareRounds) return finishMare();
+  g.round++; g.locked = false; g.sel = new Set();
+  const ambs = g.cfg.mareAmb ? AMB.filter(a => a.id === g.cfg.mareAmb) : AMB.filter(a => a.ids.length >= g.n + 4);
+  g.amb = ambs[Math.random() * ambs.length | 0];
+  g.present = shuffle(g.amb.ids.slice()).slice(0, g.n);
+  const cand = g.amb.ids.map(id => BYID[id]).sort((a, b) => a.name.localeCompare(b.name));
+  $('#app').innerHTML = `<section class="game">
+    <div class="ghead"><button class="quit" type="button" id="quit" aria-label="Quitter la partie">${ICON.close}</button>
+      <div class="gprog"><div class="bar"><div id="gbar" style="width:${(g.round - 1) / CFG.mareRounds * 100}%"></div></div><div class="meta"><span>Scène ${g.round} / ${CFG.mareRounds}</span><span>${esc(g.amb.name)}</span></div></div>
+      <div><div class="score" id="gscore">${g.score}</div></div></div>
+    <div class="stage"><div class="listen"><button class="playbig" id="mplay" type="button" aria-label="Écouter l'ambiance">${ICON.play}</button>
+      <div class="spec">${g.cfg.spectro ? `<canvas id="spec" width="900" height="220" aria-label="Spectrogramme"></canvas><div class="ax"><span>12 kHz</span><span>6</span><span>0</span></div>` : `<div class="wave on">${'<i></i>'.repeat(18)}</div>`}
+      <div class="time"><span>${g.n} espèces chantent</span><span>${g.amb.ids.length} possibles</span></div></div></div>
+      <p class="amb-desc">${esc(g.amb.desc)}</p></div>
+    <div class="mare-pick" id="mpick">${cand.map(s => `<button type="button" class="mchip" data-id="${s.id}" aria-pressed="false">
+      ${s.photos.length ? `<img src="${photoURL(s.photos[0])}" alt="">` : '<span class="noimg"></span>'}<span><span class="nm">${sciHTML(s.name)}</span>${g.cfg.vern ? `<span class="vn">${esc(s.vern)}</span>` : ''}</span><span class="tick">${ICON.check}</span></button>`).join('')}</div>
+    <div class="mare-go"><span class="muted" id="mcount">0 / ${g.n} sélectionnée</span><button type="button" class="btn primary" id="mvalid" disabled>Valider</button></div>
+    <div id="fb"></div></section>`;
+  $('#quit').onclick = () => { Mix.stop(); finishMare(); };
+  $('#mplay').onclick = () => Mix.on ? Mix.stop() : Mix.play(g.present.map(id => BYID[id]));
+  if (g.cfg.spectro) Spec.attach($('#spec'));
+  $('#mpick').onclick = e => {
+    const b = e.target.closest('.mchip'); if (!b || g.locked) return; const id = b.dataset.id;
+    if (g.sel.has(id)) g.sel.delete(id); else g.sel.add(id);
+    b.setAttribute('aria-pressed', g.sel.has(id));
+    $('#mcount').textContent = `${g.sel.size} / ${g.n} sélectionnée${g.sel.size > 1 ? 's' : ''}`; $('#mvalid').disabled = !g.sel.size;
+  };
+  $('#mvalid').onclick = validateScene;
+  Mix.play(g.present.map(id => BYID[id]));
+}
+function validateScene() {
+  const g = Game; if (g.locked) return; g.locked = true;
+  const good = g.present.filter(id => g.sel.has(id)), missed = g.present.filter(id => !g.sel.has(id)), wrong = [...g.sel].filter(id => !g.present.includes(id));
+  let pts = good.length * 100 - wrong.length * 50; const perfect = !missed.length && !wrong.length; if (perfect) pts += 100;
+  pts = Math.max(0, pts); g.score += pts; g.found += good.length; g.total += g.present.length; if (perfect) g.perfect++;
+  g.present.forEach(id => { Store.record(id, 'e', g.sel.has(id)); if (!g.sel.has(id) && !g.misses.includes(id)) g.misses.push(id); });
+  $('#gscore').textContent = g.score;
+  $$('.mchip').forEach(b => { const id = b.dataset.id; b.disabled = true; if (g.present.includes(id)) b.classList.add(g.sel.has(id) ? 'right' : 'missed'); else if (g.sel.has(id)) b.classList.add('wrong'); else b.classList.add('dim'); });
+  $('.mare-go').remove();
+  const row = s => `<div class="missrow">${s.photos.length ? `<img src="${photoURL(s.photos[0])}" alt="">` : ''}<div class="t"><b>${sciHTML(s.name)}</b><span>${esc(s.vern)}</span></div><button type="button" class="mini" data-play="${s.id}" aria-label="Écouter ${esc(s.name)} seule">${ICON.play}</button></div>`;
+  $('#fb').innerHTML = `<div class="fb ${perfect ? 'ok' : good.length ? 'mid' : 'ko'}">
+    <span class="verdict">${perfect ? 'Parfait, tu as tout entendu !' : good.length ? `${good.length} sur ${g.present.length} trouvée${good.length > 1 ? 's' : ''}` : 'Aucune espèce trouvée…'}${pts ? ` +${pts}` : ''}</span>
+    <div class="sub">${wrong.length ? `${wrong.length} espèce${wrong.length > 1 ? 's' : ''} cochée${wrong.length > 1 ? 's' : ''} en trop. ` : ''}Réécoute chaque espèce seule pour comparer :</div>
+    <div class="misslist">${g.present.map(id => row(BYID[id])).join('')}</div>
+    <div class="row"><button type="button" class="btn primary" id="next">${g.round >= CFG.mareRounds ? 'Voir le résultat' : 'Scène suivante'}</button></div></div>`;
+  $('#fb').addEventListener('click', e => { const p = e.target.closest('[data-play]'); if (p) { Mix.stop(); Audio.toggle(soundURL(BYID[p.dataset.play]), 'row:' + p.dataset.play); } });
+  $('#next').onclick = () => { Audio.stop(); nextScene(); };
+  if (g.n >= 4 && perfect) Store.bump('mareExpert', 1);
+  if (matchMedia('(max-width:720px)').matches) $('#fb').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+function finishMare() {
+  const g = Game; if (!g || g.done) return; g.done = true; Mix.stop(); Audio.stop();
+  const played = g.locked ? g.round : g.round - 1;
+  if (played > 0) Store.bump('mares', (Store.data.rec.mares || 0) + 1);
+  const prev = Store.data.best[g.key] || 0, record = g.score > prev && g.score > 0;
+  if (record) { Store.data.best[g.key] = g.score; Store.save(); }
+  $('#app').innerHTML = `<section class="end">
+    <span class="eyebrow">${esc(configLabel(g.key))}</span>
+    <div class="scorebig">${g.score}</div><div>points</div>
+    ${record ? '<div class="record">Nouveau record !</div>' : prev ? `<div class="muted">Record : ${prev} pts</div>` : ''}
+    <div class="stats3"><div><b>${g.found}/${g.total}</b><span>espèces trouvées</span></div><div><b>${g.perfect}</b><span>scène${g.perfect > 1 ? 's' : ''} parfaite${g.perfect > 1 ? 's' : ''}</span></div><div><b>${played}</b><span>scène${played > 1 ? 's' : ''}</span></div></div>
+    ${g.misses.length ? `<h2 style="text-align:left;margin-top:8px">Espèces manquées</h2><div class="misslist">${g.misses.map(id => missRow(BYID[id])).join('')}</div>` : ''}
+    <div class="row" style="justify-content:center"><button type="button" class="btn primary" id="again">Rejouer</button><a class="btn ghost" href="#jouer">Changer de jeu</a></div>
+    ${g.total ? `<div class="row" style="justify-content:center"><button type="button" class="btn ghost" id="share">${ICON.share} Partager mon score</button></div>` : ''}
+  </section>`;
+  Game = null; document.body.classList.remove('in-game');
+  $('#again').onclick = startMare;
+  const sh = $('#share'); if (sh) sh.onclick = () => shareText(`🐸 Krapo Kwizz · Ambiance mare\n${g.score} pts · ${g.found}/${g.total} espèces reconnues au milieu du chœur\nEt toi, tu reconnais qui chante dans la mare ?`);
+  bindRows($('#app')); setTimeout(checkBadges, 400);
+}
+
+/* ---------------- badges ---------------- */
+function mastered(kind, arr) { return arr.filter(s => Store.mastery(s.id, kind).b >= 3).length; }
+function carnetCount(state) { return Object.values(Store.data.carnet).filter(v => !state || v.s === state).length; }
+function badgeDefs() {
+  const sE = SP.filter(hasSound), sP = SP.filter(hasPhoto), R = Store.data.rec;
+  const defs = [
+    ['premier', 'Premier coassement', 'Donner sa première bonne réponse', () => Store.data.totals.correct >= 1],
+    ['oreille10', 'Oreille affûtée', 'Maîtriser 10 chants', () => mastered('e', sE) >= 10],
+    ['oreille50', "Oreille d'or", 'Maîtriser 50 chants', () => mastered('e', sE) >= 50],
+    ['oreilleAll', 'Maître de la sonothèque', 'Maîtriser tous les chants', () => sE.length && mastered('e', sE) >= sE.length],
+    ['oeil10', 'Œil de lynx', 'Reconnaître 10 espèces en photo', () => mastered('p', sP) >= 10],
+    ['oeil50', "Regard d'expert", 'Reconnaître 50 espèces en photo', () => mastered('p', sP) >= 50],
+    ['serie10', 'Sur une lancée', '10 bonnes réponses de suite', () => (R.streak || 0) >= 10],
+    ['sansfaute', 'Sans faute', `Une série de ${CFG.serieLength} questions sans erreur`, () => (R.perfect || 0) >= 1],
+    ['survie20', 'Survivant', '20 bonnes réponses en mode Survie', () => (R.survie || 0) >= 20],
+    ['chrono15', 'Éclair', '15 bonnes réponses en Chrono', () => (R.chrono || 0) >= 15],
+    ['defi1', 'Défi relevé', 'Terminer un défi du jour', () => (R.dailies || 0) >= 1],
+    ['defi7', 'Assidu', '7 défis du jour d\'affilée', () => (R.dailyStreak || 0) >= 7],
+    ['mare1', 'Première mare', 'Jouer une partie d\'ambiance mare', () => (R.mares || 0) >= 1],
+    ['mareExpert', 'Oreille de mare', 'Une scène Expert parfaite (4 espèces)', () => (R.mareExpert || 0) >= 1],
+    ['carnet10', 'Carnet de terrain', '10 espèces vues dans le carnet', () => carnetCount('vu') >= 10],
+    ['carnet50', 'Naturaliste de terrain', '50 espèces vues ou entendues', () => carnetCount() >= 50],
+  ];
+  FAMS.forEach(f => { const arr = sE.filter(s => s.family === f); if (arr.length >= 4) defs.push(['fam:' + f, `Toutes les ${f}`, `Maîtriser les ${arr.length} chants de ${f}`, () => mastered('e', arr) >= arr.length]); });
+  return defs;
+}
+function checkBadges() {
+  const got = [];
+  for (const [id, name, , test] of badgeDefs()) { if (!Store.data.badges[id]) { let ok = false; try { ok = test(); } catch (e) {} if (ok) { Store.data.badges[id] = todayStr(); got.push(name); } } }
+  if (got.length) { Store.save(); toast(got.length === 1 ? `Badge débloqué : ${got[0]} !` : `${got.length} badges débloqués : ${got.join(', ')} !`); }
+}
+function badgesHTML() {
+  const defs = badgeDefs(), n = defs.filter(d => Store.data.badges[d[0]]).length;
+  return `<h2 style="margin-top:26px">Badges <span class="muted" style="font-size:.9rem;font-weight:600">${n} / ${defs.length}</span></h2>
+    <div class="badges">${defs.map(([id, name, desc]) => { const on = Store.data.badges[id]; return `<div class="badge${on ? ' on' : ''}"><span class="medal">${on ? ICON.check : ''}</span><b>${esc(name)}</b><span>${esc(desc)}</span></div>`; }).join('')}</div>`;
+}
+
+/* ---------------- carnet de terrain ---------------- */
+let carQ = '', carF = '';
+function viewCarnet() {
+  Audio.stop();
+  const tot = SP.length, vu = carnetCount('vu'), ent = carnetCount('entendu');
+  $('#app').innerHTML = `<span class="eyebrow">Mes observations</span>
+    <h1 class="display" style="font-size:clamp(2.2rem,8vw,3.4rem)">Mon carnet</h1>
+    <p class="lede">Coche les espèces que tu as vues ou seulement entendues sur le terrain. Ton carnet reste sur cet appareil.</p>
+    <div class="carsum">
+      <div><b>${vu}</b><span>vues</span></div><div><b>${ent}</b><span>entendues seulement</span></div><div><b>${vu + ent}<small> / ${tot}</small></b><span>au total</span></div>
+      <div class="meter wide"><div style="width:${(vu + ent) / tot * 100}%"></div></div>
+    </div>
+    <div class="toolbar"><input type="search" id="cq" placeholder="Chercher une espèce…" aria-label="Chercher une espèce" value="${esc(carQ)}">
+      ${segHTML('seg-car', { '': ['Toutes', ''], vu: ['Vues', ''], entendu: ['Entendues', ''], reste: ['À trouver', ''] }, carF, 'carseg')}</div>
+    <div id="carlist"></div>
+    <div class="row" style="margin-top:22px"><button type="button" class="btn ghost" id="cshare">${ICON.share} Partager mon carnet</button></div>
+    <p class="small" style="margin-top:14px">Une espèce vue ou entendue sur le terrain ? Pense à la saisir sur <a href="${CFG.fauneGuyane}" target="_blank" rel="noopener">Faune-Guyane</a>.</p>`;
+  $('#cq').oninput = e => { carQ = e.target.value; renderCarnet(); };
+  $('#seg-car').onclick = e => { const b = e.target.closest('button'); if (!b) return; carF = b.dataset.v; $$('#seg-car button').forEach(x => x.setAttribute('aria-pressed', x === b)); renderCarnet(); };
+  $('#cshare').onclick = () => shareText(`🐸 Mon carnet Krapo Kwizz : ${carnetCount('vu')} espèces d'amphibiens de Guyane vues et ${carnetCount('entendu')} entendues, sur ${SP.length}.`);
+  renderCarnet();
+  $('#carlist').onclick = e => {
+    const t = e.target.closest('[data-c]');
+    if (t) { const id = t.dataset.id, st = t.dataset.c, cur = Store.data.carnet[id];
+      if (cur && cur.s === st) delete Store.data.carnet[id]; else Store.data.carnet[id] = { s: st, d: todayStr() };
+      Store.save(); viewCarnetKeep(); return; }
+    const s = e.target.closest('[data-sheet]'); if (s) openSheet(s.dataset.sheet);
+  };
+}
+function viewCarnetKeep() { const y = window.scrollY; viewCarnet(); window.scrollTo(0, y); setTimeout(checkBadges, 300); }
+function renderCarnet() {
+  const q = norm(carQ);
+  const L = SP.filter(s => { const c = Store.data.carnet[s.id]; if (carF === 'vu' && !(c && c.s === 'vu')) return false; if (carF === 'entendu' && !(c && c.s === 'entendu')) return false; if (carF === 'reste' && c) return false;
+    return !q || [s.name, s.old, s.vern, s.family].some(x => x && norm(x).includes(q)); });
+  const fams = [...new Set(L.map(s => s.family))].sort((a, b) => a.localeCompare(b));
+  $('#carlist').innerHTML = fams.length ? fams.map(f => { const ss = L.filter(s => s.family === f).sort((a, b) => a.name.localeCompare(b.name)); const all = SP.filter(s => s.family === f); const done = all.filter(s => Store.data.carnet[s.id]).length;
+    return `<section class="famblock"><h2>${esc(f)}<span>${done} / ${all.length}</span></h2><div class="carrows">${ss.map(s => { const c = Store.data.carnet[s.id];
+      return `<div class="carrow${c ? ' ' + c.s : ''}"><button type="button" class="car-sp" data-sheet="${s.id}">${s.photos.length ? `<img src="${photoURL(s.photos[0])}" alt="" loading="lazy">` : '<span class="noimg"></span>'}<span><span class="nm">${sciHTML(s.name)}</span><span class="vn">${esc(s.vern)}</span></span></button>
+        <div class="car-btns"><button type="button" class="cbox" data-id="${s.id}" data-c="vu" aria-pressed="${!!(c && c.s === 'vu')}" title="Vue in situ">${ICON.eye}<span>Vue</span></button>
+        <button type="button" class="cbox" data-id="${s.id}" data-c="entendu" aria-pressed="${!!(c && c.s === 'entendu')}" title="Entendue mais jamais vue">${ICON.ear}<span>Entendue</span></button></div></div>`; }).join('')}</div></section>`; }).join('') : '<p class="muted" style="padding:20px 0">Aucune espèce dans cette liste.</p>';
+}
+
 /* ---------------- démarrage ---------------- */
 (async function boot() {
   Store.load(); Audio.init();
@@ -623,5 +963,6 @@ async function downloadAll() {
   window.addEventListener('popstate', () => { if (Game && location.hash !== '#partie') endGame(); });
   if (location.hash === '#partie') history.replaceState(null, '', '#jouer');
   route();
+  setTimeout(checkBadges, 1500);
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

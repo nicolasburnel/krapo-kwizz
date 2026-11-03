@@ -9,6 +9,10 @@ Krapo Kwizz est un site gratuit, sans inscription, qui fonctionne sur téléphon
 - **Écoute** : un chant, trouver l'espèce, en choisissant parmi 4 noms ou 4 photos, ou en écrivant le nom.
 - **Photo** : une photo, nommer l'espèce, du niveau Découverte au niveau Maître, avec des indices.
 - **Rythmes** : série de 20 questions, contre-la-montre de 60 secondes, survie à 3 vies.
+- **Défi du jour** : 10 questions (chants et photos), les mêmes pour tout le monde chaque jour, avec résultat à partager.
+- **Ambiance mare** : plusieurs espèces d'un même milieu chantent ensemble, il faut cocher toutes celles qu'on entend.
+- **Mode inverse** : une photo, retrouver son chant parmi 4. **Photo qui se dévoile** : option du mode Photo.
+- **Badges**, **partage du score**, et **Mon carnet** pour cocher les espèces vues ou entendues sur le terrain.
 - **Espèces** : toutes les fiches, avec photos, chant, critères et confusions possibles.
 - **Progrès** : maîtrise par famille et records, enregistrés sur l'appareil du joueur.
 
@@ -41,6 +45,10 @@ C'est le cœur de l'appli : une ligne par espèce. GitHub l'affiche comme un tab
 | `remarque` | note libre, non affichée | |
 
 ⚠️ Si une case contient une virgule, elle doit être entre guillemets `"…"`. L'éditeur de GitHub le signale si le tableau est cassé : vérifie l'aperçu avant d'enregistrer.
+
+### Les milieux de l'ambiance mare : `data/ambiances.csv`
+
+Une ligne par milieu (mare forestière, sous-bois, bord de crique, savanes et marais, village). La colonne `especes` liste les `id` des espèces qui peuvent réellement chanter ensemble dans ce milieu, séparés par ` | `. Seules les espèces qui ont un chant sont utilisées, et un milieu doit en compter au moins 6. Tu peux ajouter un milieu en ajoutant une ligne.
 
 ### Renommer une espèce
 
