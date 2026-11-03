@@ -443,3 +443,19 @@ details.fams .chips{margin-top:10px}
 .cmp-it img,.cmp-it .noimg{width:36px;height:36px;object-fit:contain;background:var(--photo-bg);border-radius:8px;flex:none;padding:2px}
 .cmp-it .nm{display:block;font-size:.85rem;font-weight:700;line-height:1.2}
 .cmp-it .vn{display:block;font-size:.75rem;color:var(--muted)}
+
+/* statuts (abondance, mœurs, UICN, protection) */
+.statuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.stt{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:grid;gap:6px;min-width:0}
+.stt-k{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;font-weight:800;color:var(--muted)}
+.st{display:inline-flex;align-items:center;gap:8px;font-size:.9rem;font-weight:700;line-height:1.2}
+.st>b,.st>svg{flex:none;display:grid;place-items:center;min-width:34px;height:28px;padding:0 6px;border-radius:8px;background:var(--c);color:#fff;font-size:.8rem;font-weight:800;letter-spacing:.02em}
+.st>svg{width:34px;padding:4px 7px;box-sizing:border-box}
+.st.light>b{color:#2b2b2b}
+.st.outline>b{background:transparent;color:var(--fg);box-shadow:inset 0 0 0 1.5px var(--line)}
+.st.st-none span{color:var(--muted);font-weight:600}
+.st>span{min-width:0}
+.tag-st{display:inline-flex;gap:4px;margin-left:auto}
+.tag-st .st>b,.tag-st .st>svg{min-width:22px;height:20px;padding:0 4px;font-size:.62rem;border-radius:6px}
+.tag-st .st>svg{width:22px;padding:2px 4px}
+.card .tags{align-items:center}

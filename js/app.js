@@ -99,7 +99,7 @@ async function loadData() {
   const rows = parseCSV(await res.text());
   SP = rows.map(r => ({
     id: r.id, name: r.nom, vern: r.nom_vernaculaire, family: r.famille, page: r.page_guide,
-    sound: r.son, soundBy: r.auteur_son, photos: list(r.photos), photoBy: r.credit_photos || '', map: r.carte || '', habitat: r.habitat, size: r.taille,
+    sound: r.son, soundBy: r.auteur_son, photos: list(r.photos), photoBy: r.credit_photos || '', map: r.carte || '', ab: r.abondance || '', mo: r.moeurs || '', ui: r.uicn || '', pr: r.protection || '', habitat: r.habitat, size: r.taille,
     crit: list(r.criteres), confNames: list(r.confusions), comment: r.commentaire, old: r.ancien_nom,
   })).filter(s => s.id && s.name);
   BYID = Object.fromEntries(SP.map(s => [s.id, s]));
@@ -110,6 +110,29 @@ async function loadData() {
     const ra = await fetch('data/ambiances.csv', { cache: 'no-cache' });
     AMB = parseCSV(await ra.text()).map(a => ({ id: a.id, name: a.nom, desc: a.description, ids: list(a.especes).filter(id => BYID[id] && hasSound(BYID[id])) })).filter(a => a.ids.length >= 6);
   } catch (e) { AMB = []; }
+}
+const STATUTS = {
+  ab: { titre: 'Abondance', v: { TC: ['Très commun', '#1679c5'], C: ['Commun', '#22a35a'], PF: ['Peu fréquent', '#ee7a1b'], R: ['Rare', '#b3242c'], TR: ['Très rare', '#9b1d5c'] } },
+  mo: { titre: 'Mœurs', v: { T: ['Terrestre', '#6b6f6d'], A: ['Arboricole', '#6b6f6d'], Aq: ['Aquatique', '#6b6f6d'] } },
+  ui: { titre: 'Liste rouge UICN (Guyane)', v: { CR: ['En danger critique', '#d81e05'], EN: ['En danger', '#fc7f3f'], VU: ['Vulnérable', '#f9e814'], NT: ['Quasi menacée', '#cce226'], LC: ['Préoccupation mineure', '#60c659'], DD: ['Données insuffisantes', '#d1d1c6'], NA: ['Non applicable (introduite)', '#ffffff'], NE: ['Non évaluée', '#ffffff'] } },
+  pr: { titre: 'Protection', v: { P: ['Protégée', '#5aae2e'], H: ['Protégée avec son habitat', '#0b7a2a'] } },
+};
+const MOEURS_ICON = {
+  T: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18"/><path d="M6 19c0-2 1-3.5 3-4M12 19c0-3 1.2-5 3.5-6M18 19c0-1.6-.6-2.8-1.6-3.6"/><circle cx="9.5" cy="9" r="2.2"/></svg>',
+  A: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21v-7"/><path d="M12 14c-4 0-6.5-2.4-6.5-5.5S8.4 3 12 3s6.5 2.4 6.5 5.5S16 14 12 14z"/><path d="M12 11l-2.5-2.5M12 9.5l2.5-2"/></svg>',
+  Aq: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5c3 3.6 5 6.4 5 9a5 5 0 0 1-10 0c0-2.6 2-5.4 5-9z"/><path d="M3 20c1.5-1 3-1 4.5 0s3 1 4.5 0 3-1 4.5 0 3 1 4.5 0"/></svg>',
+};
+const SHIELD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 3v5.5c0 4.4-3.1 8-7.5 9.5-4.4-1.5-7.5-5.1-7.5-9.5V6z"/><path d="M8.8 12.2l2.2 2.2 4.4-4.6"/></svg>';
+function statutChip(kind, code, withLabel) {
+  const d = STATUTS[kind].v[code]; if (!d) return '';
+  const [label, col] = d, light = ['VU', 'NT', 'DD', 'NA', 'NE'].includes(code);
+  const inner = kind === 'mo' ? MOEURS_ICON[code] : kind === 'pr' ? SHIELD : `<b>${code}</b>`;
+  return `<span class="st st-${kind}${light ? ' light' : ''}${['NA', 'NE'].includes(code) ? ' outline' : ''}" style="--c:${col}" title="${esc(STATUTS[kind].titre)} : ${esc(label)}">${inner}${withLabel ? `<span>${esc(label)}</span>` : ''}</span>`;
+}
+function statutsHTML(s) {
+  const items = [['ab', s.ab], ['mo', s.mo], ['ui', s.ui], ['pr', s.pr]].filter(([k, c]) => STATUTS[k].v[c]);
+  if (!s.pr && items.length) items.push(['pr', '']);
+  return items.length ? `<div class="statuts">${items.map(([k, c]) => `<div class="stt"><span class="stt-k">${STATUTS[k].titre}</span>${c ? statutChip(k, c, true) : '<span class="st st-none"><span>Non protégée</span></span>'}</div>`).join('')}</div>` : '';
 }
 const hasSound = s => !!s.sound, hasPhoto = s => s.photos.length > 0;
 const soundURL = s => 'sons/' + s.sound, photoURL = f => 'photos/' + f, mapURL = s => 'cartes/' + s.map;
@@ -554,7 +577,7 @@ function viewSpecies(openId) {
   $('#app').innerHTML = `<span class="eyebrow">${SP.length} espèces · ${SP.filter(hasSound).length} chants</span>
     <h1 class="display" style="font-size:clamp(2.2rem,8vw,3.4rem)">Espèces</h1>
     <p class="lede">Les fiches du guide, les photos et les chants de la sonothèque, avec les noms à jour.</p>
-    <div class="toolbar"><input type="search" id="q" placeholder="Nom, genre, page du guide…" aria-label="Chercher une espèce" value="${esc(libQ)}">
+    <div class="toolbar"><input type="search" id="q" placeholder="Nom, genre, famille…" aria-label="Chercher une espèce" value="${esc(libQ)}">
     <select id="fsel" aria-label="Famille"><option value="">Toutes les familles</option>${FAMS.map(f => `<option${f === libF ? ' selected' : ''}>${esc(f)}</option>`).join('')}</select></div>
     <div id="lib"></div>`;
   $('#q').oninput = e => { libQ = e.target.value; renderLib(); };
@@ -564,14 +587,14 @@ function viewSpecies(openId) {
 }
 function renderLib() {
   const q = norm(libQ);
-  const L = SP.filter(s => (!libF || s.family === libF) && (!q || [s.name, s.old, s.vern, s.family, 'p' + s.page, s.page].some(x => x && norm(String(x)).includes(q))));
+  const L = SP.filter(s => (!libF || s.family === libF) && (!q || [s.name, s.old, s.vern, s.family].some(x => x && norm(String(x)).includes(q))));
   const fams = [...new Set(L.map(s => s.family))].sort((a, b) => a.localeCompare(b));
   $('#lib').innerHTML = fams.length ? fams.map(f => { const ss = L.filter(s => s.family === f).sort((a, b) => (+a.page - +b.page) || a.name.localeCompare(b.name));
     return `<section class="famblock"><h2>${esc(f)}<span>${ss.length} espèce${ss.length > 1 ? 's' : ''}</span></h2><div class="grid">${ss.map(s => `
       <button type="button" class="card" data-sheet="${s.id}">
         <span class="ph${s.photos.length ? '' : ' none'}">${s.photos.length ? `<img src="${photoURL(s.photos[0])}" alt="" loading="lazy">` : 'Pas de photo'}</span>
         <span class="t"><b>${sciHTML(s.name)}</b><span>${esc(s.vern)}</span></span>
-        <span class="tags"><span class="tag${hasSound(s) ? '' : ' off'}">${hasSound(s) ? 'Chant' : 'Sans chant'}</span>${s.page ? `<span class="tag off">p. ${esc(s.page)}</span>` : ''}</span>
+        <span class="tags"><span class="tag${hasSound(s) ? '' : ' off'}">${hasSound(s) ? 'Chant' : 'Sans chant'}</span><span class="tag-st">${s.mo ? statutChip('mo', s.mo) : ''}${s.ui ? statutChip('ui', s.ui) : ''}${s.pr ? statutChip('pr', s.pr) : ''}</span></span>
       </button>`).join('')}</div></section>`; }).join('') : '<p class="muted" style="padding:24px 0">Aucune espèce ne correspond à cette recherche.</p>';
 }
 function openSheet(id, fromRoute) {
@@ -585,8 +608,9 @@ function openSheet(id, fromRoute) {
       <div class="title"><span class="eyebrow">${esc(s.family)}</span><h2>${sciHTML(s.name)}</h2><span class="vn">${esc(s.vern)}</span>${s.old ? `<span class="old">Nom dans le guide 2023 : ${sciHTML(s.old)}</span>` : ''}</div>
       ${hasSound(s) ? `<div class="player"><button type="button" class="mini" data-play="${s.id}" aria-label="Écouter">${ICON.play}</button><div class="pt"><b>Chant</b><span>Enregistrement : ${esc(s.soundBy)}</span><div class="pbar"><div id="sheetbar"></div></div></div></div>` : '<p class="muted" style="margin:0">Pas de chant dans la sonothèque pour cette espèce.</p>'}
       ${s.photoBy ? `<p class="small" style="margin:0">Photos : ${esc(s.photoBy)}</p>` : ''}
+      ${statutsHTML(s)}
       ${s.map ? `<div class="sheet-map"><img src="${mapURL(s)}" alt="Carte de répartition de ${esc(s.name)} en Guyane" loading="lazy"><div><b>Répartition en Guyane</b><span>En vert, la zone où l'espèce est connue, d'après les données de Faune-Guyane.</span></div></div>` : ''}
-      <dl class="facts">${s.habitat ? `<dt>Habitat</dt><dd>${esc(s.habitat)}</dd>` : ''}${s.size ? `<dt>Taille</dt><dd>${esc(s.size)}</dd>` : ''}${s.page ? `<dt>Guide</dt><dd>page ${esc(s.page)}</dd>` : ''}</dl>
+      <dl class="facts">${s.habitat ? `<dt>Habitat</dt><dd>${esc(s.habitat)}</dd>` : ''}${s.size ? `<dt>Taille</dt><dd>${esc(s.size)}</dd>` : ''}</dl>
       ${s.crit.length ? `<div><b>Critères d'identification</b><ul class="crit">${s.crit.map(c => `<li>${esc(c)}</li>`).join('')}</ul></div>` : ''}
       ${s.conf.length ? `<div><b>Confusions possibles</b><div class="conf" style="margin-top:6px">${s.conf.map(c => `<button type="button" data-goto="${c}">${sciHTML(BYID[c].name)}</button>`).join('')}</div></div>` : ''}
       ${s.comment ? `<p style="margin:0">${esc(s.comment)}</p>` : ''}

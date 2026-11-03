@@ -38,6 +38,7 @@ C'est le cœur de l'appli : une ligne par espèce. GitHub l'affiche comme un tab
 | `photos` | fichiers du dossier `photos/`, séparés par ` \| ` | `scinax-cynocephalus-1.webp \| scinax-cynocephalus-2.webp` |
 | `carte` | carte de répartition dans le dossier `cartes/` (affichée sur la fiche et en indice) | `boana-boans.webp` |
 | `credit_photos` | auteur(s) des photos, affiché sur la fiche | `Elven Remérand` |
+| `abondance`, `moeurs`, `uicn`, `protection` | codes du guide : TC/C/PF/R/TR · T/A/Aq · CR/EN/VU/NT/LC/DD/NA · P/H (vide = non protégée) | `PF`, `A`, `LC`, `H` |
 | `habitat`, `taille` | utilisés pour les indices et la fiche | `Marais (littoral)` |
 | `criteres` | critères d'identification, séparés par ` \| ` | `Museau court \| Iris rouge` |
 | `confusions` | noms des espèces confondables, séparés par ` \| ` ; utilisés pour le niveau Expert | `Scinax jolyi \| Scinax proboscideus` |
