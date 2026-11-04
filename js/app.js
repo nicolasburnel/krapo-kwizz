@@ -201,8 +201,8 @@ const LEVELS = {
   maitre: ['Maître', 'Aucune proposition : écris le nom exact'],
 };
 const FORMATS = { noms: ['4 noms', 'Choisis le bon nom'], photos: ['4 photos', 'Clique sur la bonne grenouille'], inverse: ['Inverse', 'Une photo : retrouve son chant parmi 4'], saisie: ['Saisie libre', 'Écris le nom exact'] };
-const MARE_LEVELS = { decouverte: ['Découverte', '2 espèces chantent ensemble'], inter: ['Intermédiaire', '3 espèces chantent ensemble'], expert: ['Expert', '4 espèces chantent ensemble'] };
-const MARE_N = { decouverte: 2, inter: 3, expert: 4 };
+const MARE_LEVELS = { decouverte: ['Découverte', '2 espèces chantent ensemble'], inter: ['Intermédiaire', '3 espèces chantent ensemble'], expert: ['Expert', '4 espèces chantent ensemble'], maitre: ['Maître', '6 espèces chantent ensemble'] };
+const MARE_N = { decouverte: 2, inter: 3, expert: 4, maitre: 6 };
 const PERIODES = { '': ['Jour ou nuit', ''], nuit: ['La nuit', ''], jour: ['En journée', ''] };
 const RYTHMES = { serie: ['Série', `${CFG.serieLength} questions`], chrono: ['Chrono', `${CFG.chronoSeconds} secondes`], survie: ['Survie', `${CFG.lives} vies`] };
 function isFree() { return S.mode === 'ecoute' ? S.format === 'saisie' : S.level === 'maitre'; }
@@ -848,7 +848,7 @@ function mareSetupHTML() {
   const best = Store.data.best[`mare/${S.mareLevel}/${S.mareAmb || 'random' + (S.marePer || '')}`];
   return `<section class="setup" aria-label="Réglages de l'ambiance mare">
     <p class="desc" style="font-size:.95rem">Plusieurs espèces chantent en même temps, comme sur le terrain. Les espèces d'une scène vivent dans le même milieu et chantent au même moment : elles peuvent réellement s'entendre ensemble. Coche toutes celles que tu entends.</p>
-    <div class="opt"><span class="lbl">Difficulté</span>${segHTML('seg-mlevel', MARE_LEVELS, S.mareLevel, 'withsub')}</div>
+    <div class="opt"><span class="lbl">Difficulté</span>${segHTML('seg-mlevel', MARE_LEVELS, S.mareLevel, 'withsub wrap4')}</div>
     <div class="opt"><span class="lbl">Moment</span>${segHTML('seg-mper', PERIODES, S.marePer || '')}</div>
     <div class="opt"><span class="lbl">Milieu</span><div class="chips" id="ambchips">
       <button type="button" class="chip" data-a="" aria-pressed="${!S.mareAmb}">Au hasard</button>
@@ -877,7 +877,10 @@ function nextScene() {
   const g = Game; if (!g || g.done) return;
   if (g.round >= CFG.mareRounds) return finishMare();
   g.round++; g.locked = false; g.sel = new Set();
-  const ambs = g.cfg.mareAmb ? AMB.filter(a => a.id === g.cfg.mareAmb) : AMB.filter(a => a.ids.length >= g.n + 4 && (!g.cfg.marePer || a.per === g.cfg.marePer));
+  const okPer = a => !g.cfg.marePer || a.per === g.cfg.marePer;
+  let ambs = g.cfg.mareAmb ? AMB.filter(a => a.id === g.cfg.mareAmb) : AMB.filter(a => a.ids.length >= g.n + 4 && okPer(a));
+  if (!ambs.length) ambs = AMB.filter(a => a.ids.length >= g.n + 1 && okPer(a));
+  if (!ambs.length) ambs = AMB.filter(a => a.ids.length >= g.n);
   g.amb = ambs[Math.random() * ambs.length | 0];
   g.present = shuffle(g.amb.ids.slice()).slice(0, g.n);
   const cand = g.amb.ids.map(id => BYID[id]).sort((a, b) => a.name.localeCompare(b.name));
@@ -922,7 +925,7 @@ function validateScene() {
     <div class="row"><button type="button" class="btn primary" id="next">${g.round >= CFG.mareRounds ? 'Voir le résultat' : 'Scène suivante'}</button></div></div>`;
   $('#fb').addEventListener('click', e => { const p = e.target.closest('[data-play]'); if (p) { Mix.stop(); Audio.toggle(soundURL(BYID[p.dataset.play]), 'row:' + p.dataset.play); } });
   $('#next').onclick = () => { Audio.stop(); nextScene(); };
-  if (g.n >= 4 && perfect) Store.bump('mareExpert', 1);
+  if (g.n >= 4 && perfect) Store.bump('mareExpert', 1); if (g.n >= 6 && perfect) Store.bump('mareMaitre', 1);
   if (matchMedia('(max-width:720px)').matches) $('#fb').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 function finishMare() {
@@ -967,6 +970,7 @@ function badgeDefs() {
     ['defi7', 'Assidu', '7 défis du jour d\'affilée', () => (R.dailyStreak || 0) >= 7],
     ['mare1', 'Première mare', 'Jouer une partie d\'ambiance mare', () => (R.mares || 0) >= 1],
     ['mareExpert', 'Oreille de mare', 'Une scène Expert parfaite (4 espèces)', () => (R.mareExpert || 0) >= 1],
+    ['mareMaitre', 'Chef de chœur', 'Une scène Maître parfaite (6 espèces)', () => (R.mareMaitre || 0) >= 1],
     ['carnet10', 'Carnet de terrain', '10 espèces vues dans le carnet', () => carnetCount('vu') >= 10],
     ['carnet50', 'Naturaliste de terrain', '50 espèces vues ou entendues', () => carnetCount() >= 50],
   ];

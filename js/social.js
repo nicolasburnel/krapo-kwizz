@@ -116,6 +116,7 @@ const LEADERBOARDS = [
   ['ecoute/noms/inter/survie/toutes', 'Survie · Écoute'],
   ['mare/inter/random', 'Ambiance mare · Intermédiaire'],
   ['mare/expert/random', 'Ambiance mare · Expert'],
+  ['mare/maitre/random', 'Ambiance mare · Maître'],
 ];
 
 /* ---------------- état du compte ---------------- */
