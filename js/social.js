@@ -268,7 +268,7 @@ const Social = window.Social = {
     Audio.stop();
     const app = $('#app');
     app.innerHTML = `<span class="eyebrow">Jouer à plusieurs</span><h1 class="display" style="font-size:clamp(2.2rem,8vw,3.4rem)">Ensemble</h1>
-      <p class="lede">Défie tes amis, joue en direct, compare vos carnets et grimpe dans les classements.</p><div id="ens"><p class="loading">Connexion…</p></div>`;
+      <p class="lede">Joue en direct avec tes amis, compare vos carnets et grimpe dans les classements.</p><div id="ens"><p class="loading">Connexion…</p></div>`;
     await this.start();
     if (location.hash.split('/')[0] !== '#ensemble') return;
     const box = $('#ens');
@@ -279,19 +279,14 @@ const Social = window.Social = {
         ${this.cfgHTML('live')}
         <div class="row"><button type="button" class="btn primary" id="live-new">Créer un salon</button></div>
         <form class="free" id="live-join" style="margin-top:10px"><input id="live-code" maxlength="4" placeholder="Code (ex. KWZA)" aria-label="Code du salon" autocapitalize="characters" style="text-transform:uppercase"><button class="btn" type="submit">Rejoindre</button></form></section>
-      <section class="ens-card"><div class="ens-h"><span class="ico">${ICON.share}</span><div><b>Battle à distance</b><span>Joue 10 questions, puis envoie le lien : tes amis jouent les mêmes quand ils veulent.</span></div></div>
-        ${this.cfgHTML('battle')}
-        <div class="row"><button type="button" class="btn primary" id="battle-new">Créer une battle et jouer</button></div>
-        ${(p.battles || []).length ? `<p class="small" style="margin:10px 0 4px">Mes battles récentes :</p><div class="chips">${(p.battles || []).slice(-8).reverse().map(b => `<a class="chip" href="#battle/${b}">${b}</a>`).join('')}</div>` : ''}</section>
       <section class="ens-card"><div class="ens-h"><span class="ico">${ICON.eye}</span><div><b>Comparer les carnets</b><span>Cherche un joueur par son pseudo pour voir ses observations à côté des tiennes.</span></div></div>
         <form class="free" id="find"><input id="find-q" placeholder="Pseudo d'un joueur" aria-label="Pseudo à chercher"><button class="btn" type="submit">Voir</button></form><p class="small" id="find-msg"></p></section>
       <section class="ens-card"><div class="ens-h"><span class="ico">${ICON.sun}</span><div><b>Classements</b><span>Le défi du jour et les meilleurs scores par mode.</span></div></div>
         <select id="lb-sel" aria-label="Classement"><option value="daily">Défi du jour · ${dateFr(todayStr())}</option>${LEADERBOARDS.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('')}</select>
         <div id="lb"><p class="loading">Chargement…</p></div></section>`;
-    for (const k of ['live', 'battle']) this.bindCfg(k);
+    this.bindCfg('live');
     $('#live-new').onclick = () => this.createSalon();
     $('#live-join').onsubmit = e => { e.preventDefault(); const c = $('#live-code').value.trim().toUpperCase(); if (c.length === 4) location.hash = '#salon/' + c; };
-    $('#battle-new').onclick = () => this.createBattle();
     $('#find').onsubmit = async e => { e.preventDefault(); const q = $('#find-q').value.trim(); if (!q) return; const min = pseudoMin(q); const ok = await Cloud.get('pseudos/' + min).catch(() => null);
       if (ok) location.hash = '#joueur/' + encodeURIComponent(min); else $('#find-msg').textContent = 'Aucun joueur avec ce pseudo.'; };
     $('#lb-sel').onchange = () => this.loadBoard($('#lb-sel').value);

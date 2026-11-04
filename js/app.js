@@ -190,7 +190,7 @@ const Spec = {
 };
 
 /* ---------------- réglages ---------------- */
-const DEFAULTS = { mode: 'ecoute', format: 'noms', level: 'inter', rythme: 'serie', fams: [], spectro: true, revision: true, vern: true, reveal: false, mareLevel: 'inter', mareAmb: '' };
+const DEFAULTS = { mode: 'ecoute', format: 'noms', level: 'inter', rythme: 'serie', fams: [], spectro: true, revision: true, vern: true, reveal: false, terrain: true, mareLevel: 'inter', mareAmb: '' };
 let S = {};
 function loadSettings() { S = Object.assign({}, DEFAULTS, Store.data.last || {}); S.fams = (S.fams || []).filter(f => FAMS.includes(f)); }
 function saveSettings() { Store.data.last = S; Store.save(); }
@@ -237,7 +237,7 @@ function route() {
   else if (view === 'carnet') viewCarnet();
   else if (view === 'ensemble') Social.viewEnsemble();
   else if (view === 'joueur') Social.viewJoueur(decodeURIComponent(arg || ''));
-  else if (view === 'battle') Social.viewBattle(arg);
+  else if (view === 'battle') { location.replace('#ensemble'); return; }
   else if (view === 'salon') Social.viewSalon(arg);
   else if (view === 'confidentialite') Social.viewPrivacy();
   else if (view === 'progres') viewProgress();
@@ -279,6 +279,7 @@ function viewHome() {
     </details></div>
     <div class="toggles">
       ${S.mode === 'ecoute' ? `<label class="toggle"><span>Spectrogramme<small>Voir le chant défiler pendant l'écoute</small></span><input type="checkbox" class="switch" id="t-spectro"${S.spectro ? ' checked' : ''}></label>` : ''}
+      ${S.mode === 'photo' || (S.mode === 'ecoute' && S.format === 'inverse') ? `<label class="toggle"><span>Photos de terrain<small>Photos in situ variées d'iNaturalist (qualité recherche, en ligne). Sans réseau : photos du guide</small></span><input type="checkbox" class="switch" id="t-terrain"${S.terrain ? ' checked' : ''}></label>` : ''}
       ${S.mode === 'photo' ? `<label class="toggle"><span>Photo qui se dévoile<small>La photo est floue puis devient nette : plus tu réponds tôt, plus tu gagnes de points</small></span><input type="checkbox" class="switch" id="t-reveal"${S.reveal ? ' checked' : ''}></label>` : ''}
       ${!isFree() && !(S.mode === 'ecoute' && ['photos', 'inverse'].includes(S.format)) ? `<label class="toggle"><span>Noms vernaculaires<small>Afficher « Rainette ponctuée » sous le nom scientifique</small></span><input type="checkbox" class="switch" id="t-vern"${S.vern ? ' checked' : ''}></label>` : ''}
       <label class="toggle"><span>Ce qui chante en ${MOIS[curMonth()]}<small>Seulement les espèces observées ce mois-ci, pour réviser avant de sortir</small></span><input type="checkbox" class="switch" id="t-saison"${S.saison ? ' checked' : ''}></label>
@@ -296,9 +297,43 @@ function viewHome() {
   $('#famchips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; const f = b.dataset.f; S.fams = S.fams.includes(f) ? S.fams.filter(x => x !== f) : [...S.fams, f]; saveSettings(); viewHome(); $('details.fams').open = true; };
   const fr = $('#famreset'); if (fr) fr.onclick = () => { S.fams = []; saveSettings(); viewHome(); };
   const tg = (id, key) => { const el = $('#' + id); if (el) el.onchange = () => { S[key] = el.checked; saveSettings(); }; };
-  tg('t-spectro', 'spectro'); tg('t-vern', 'vern'); tg('t-rev', 'revision'); tg('t-reveal', 'reveal'); const ts = $('#t-saison'); if (ts) ts.onchange = () => { S.saison = ts.checked; saveSettings(); viewHome(); };
+  tg('t-spectro', 'spectro'); tg('t-vern', 'vern'); tg('t-rev', 'revision'); tg('t-reveal', 'reveal'); tg('t-terrain', 'terrain'); const ts = $('#t-saison'); if (ts) ts.onchange = () => { S.saison = ts.checked; saveSettings(); viewHome(); };
   $('#go').onclick = () => startGame();
 }
+
+/* ---------------- photos de terrain (iNaturalist) ---------------- */
+const INAT = {
+  api: 'https://api.inaturalist.org/v1/observations', place: 6949, // Guyane française
+  licences: 'cc-by,cc-by-nc,cc-by-sa,cc-by-nc-sa,cc0', cache: {}, pending: {},
+  eligible: s => !/\b(aff|cf|sp)\./.test(s.name),
+  async list(s) {
+    if (!this.eligible(s) || !navigator.onLine) return [];
+    if (this.cache[s.id]) return this.cache[s.id];
+    if (this.pending[s.id]) return this.pending[s.id];
+    const q = (place) => `${this.api}?taxon_name=${encodeURIComponent(s.name)}&quality_grade=research&photos=true&photo_license=${this.licences}&per_page=60&order_by=votes${place ? '&place_id=' + this.place : ''}`;
+    this.pending[s.id] = (async () => {
+      const get = async url => { const c = new AbortController(); const tm = setTimeout(() => c.abort(), 5000); try { const r = await fetch(url, { signal: c.signal }); return r.ok ? (await r.json()).results || [] : []; } finally { clearTimeout(tm); } };
+      let res = await get(q(true)).catch(() => []);
+      if (res.length < 4) res = res.concat(await get(q(false)).catch(() => []));
+      const seen = new Set(), out = [];
+      for (const o of res) {
+        if (!o.taxon || !o.taxon.name.startsWith(s.name)) continue;
+        for (const ph of (o.photos || []).slice(0, 2)) {
+          if (!ph.url || seen.has(ph.id) || !ph.license_code) continue; seen.add(ph.id);
+          out.push({ url: ph.url.replace('/square.', '/medium.'), attr: (ph.attribution || '').replace(/,? ?some rights reserved/i, ''), lic: ph.license_code.toUpperCase().replace('CC-', 'CC '), obs: 'https://www.inaturalist.org/observations/' + o.id });
+        }
+      }
+      this.cache[s.id] = out; delete this.pending[s.id]; return out;
+    })().catch(() => { delete this.pending[s.id]; return []; });
+    return this.pending[s.id];
+  },
+  async pick(s, avoid) {
+    const L = await this.list(s); if (!L.length) return null;
+    const pool = L.filter(p => p.url !== avoid); const p = (pool.length ? pool : L)[Math.random() * (pool.length || L.length) | 0];
+    await new Promise(res => { const im = new Image(); im.onload = im.onerror = res; im.src = p.url; setTimeout(res, 6000); });
+    return p;
+  },
+};
 
 /* ---------------- moteur de jeu ---------------- */
 function weight(s) { if (!S.revision) return 1; const m = Store.mastery(s.id, S.mode === 'ecoute' ? 'e' : 'p'); return 6 - m.b; }
@@ -406,9 +441,25 @@ function renderStage() {
     if (g.cfg.spectro) Spec.attach($('#spec'));
   } else {
     const rev = g.cfg.mode === 'photo' && g.cfg.reveal;
-    st.innerHTML = `<div class="pic${rev ? ' reveal' : ''}"><img src="${photoURL(g.photo)}" alt="Photo de l'espèce à trouver">${cur.photos.length > 1 && !rev ? '<button type="button" class="other" id="other">Autre photo</button>' : ''}${inverse ? '<span class="pic-q">Quel est son chant ?</span>' : ''}</div>` + hintBarHTML();
-    if (rev) { const im = $('.pic img'); im.style.filter = `blur(${CFG.revealBlur}px)`; requestAnimationFrame(() => requestAnimationFrame(() => { im.style.transition = `filter ${CFG.revealSeconds}s linear`; im.style.filter = 'blur(0px)'; })); }
-    const o = $('#other'); if (o) o.onclick = () => { const others = cur.photos.filter(p => p !== g.photo); g.photo = others[Math.random() * others.length | 0]; $('.pic img').src = photoURL(g.photo); };
+    const terrain = g.cfg.terrain !== false && INAT.eligible(cur) && navigator.onLine;
+    st.innerHTML = `<div class="pic${rev ? ' reveal' : ''}${terrain ? ' insitu loading' : ''}"><img alt="Photo de l'espèce à trouver"${terrain ? '' : ` src="${photoURL(g.photo)}"`}>${(cur.photos.length > 1 || terrain) && !rev ? '<button type="button" class="other" id="other">Autre photo</button>' : ''}${inverse ? '<span class="pic-q">Quel est son chant ?</span>' : ''}<a class="pic-credit" target="_blank" rel="noopener" hidden></a></div>` + hintBarHTML();
+    const im = $('.pic img'), box = $('.pic');
+    const startReveal = () => { if (!rev) return; im.style.transition = 'none'; im.style.filter = `blur(${CFG.revealBlur}px)`; g.qStart = performance.now(); requestAnimationFrame(() => requestAnimationFrame(() => { im.style.transition = `filter ${CFG.revealSeconds}s linear`; im.style.filter = 'blur(0px)'; })); };
+    const showGuide = () => { box.classList.remove('insitu', 'loading'); im.src = photoURL(g.photo); g.insitu = null; $('.pic-credit').hidden = true; startReveal(); };
+    const showInsitu = async () => {
+      const q = g.idx, p = await INAT.pick(cur, g.insitu && g.insitu.url);
+      if (Game !== g || g.idx !== q || !$('.pic')) return;
+      if (!p) return showGuide();
+      g.insitu = p; box.classList.remove('loading'); im.src = p.url;
+      const cr = $('.pic-credit'); cr.href = p.obs; cr.textContent = `${p.attr} · ${p.lic} · iNaturalist`; cr.hidden = false; startReveal();
+    };
+    if (terrain) { if (rev) im.style.filter = `blur(${CFG.revealBlur}px)`; showInsitu(); } else startReveal();
+    const o = $('#other'); if (o) o.onclick = () => {
+      if (g.insitu || terrain && box.classList.contains('insitu')) { box.classList.add('loading'); showInsitu(); return; }
+      const others = cur.photos.filter(p => p !== g.photo); g.photo = others[Math.random() * others.length | 0]; im.src = photoURL(g.photo);
+    };
+    // préchargement de la question suivante
+    if (terrain && g.deck && g.deck[g.idx + 1] && BYID[g.deck[g.idx + 1]]) INAT.list(BYID[g.deck[g.idx + 1]]);
   }
   $('#hintbtn').onclick = useHint; syncPlay();
 }
@@ -713,6 +764,7 @@ function viewAbout() {
     <p><b>Chants :</b> sonothèque de l'Atlas des amphibiens de Guyane. Enregistrements de ${authors.map(esc).join(', ')}. L'auteur de chaque chant est indiqué sur la fiche de l'espèce.</p>
     <p><b>Photos, textes et critères d'identification :</b> <i>Guide d'identification des Amphibiens de Guyane</i>, Elven Remérand & Quentin Uriot (2023), et ses photographes : Antoine Fouquet, Augustin Bussac, Arnaud Aury, Axel Marchelie, Benoit Villette, Daniel Baudain, Élodie Courtoie, Elven Remérand, Florent Pouzet, Hugo Foxonet, Maël Dewynter, Philippe Gaucher, Pierre Visquesnel, Quentin Uriot, Sylvain Uriot, Vincent Prémel, Xavier Rufray, ainsi que des photographes du FRAG.</p>
     ${(() => { const extra = [...new Set(SP.map(s => s.photoBy).filter(c => c && !c.startsWith('Guide')).flatMap(c => c.split(/ & |, /)))]; return extra.length ? `<p><b>Autres photos :</b> ${extra.map(esc).join(', ')}. Le crédit de chaque photo est indiqué sur la fiche de l'espèce.</p>` : ''; })()}
+    <p><b>Photos de terrain (quiz) :</b> observations de qualité recherche publiées sur <a href="https://www.inaturalist.org" target="_blank" rel="noopener">iNaturalist</a> sous licence Creative Commons, chargées en ligne. L'auteur et la licence de chaque photo sont affichés sous l'image.</p>
     <p><b>Cartes de répartition :</b> guide d'identification des Amphibiens de Guyane (2023), d'après les données de Faune-Guyane.</p>
     <p><b>Taxonomie :</b> noms mis à jour en 2026, dont <i>Pristimantis flavus</i> et <i>P. fouqueti</i> (Mônico et al. 2025), <i>P. grandoculis</i>, <i>Scinax</i> cf. <i>cruentomma</i> et <i>Otophryne</i> aff. <i>robusta</i>.</p>
     <p><b>Licence :</b> les contenus (sons, photos, textes) sont partagés sous licence <a href="https://creativecommons.org/licenses/by-nc/4.0/deed.fr" target="_blank" rel="noopener">Creative Commons BY-NC 4.0</a>. Tu peux les réutiliser en citant leurs auteurs, sans usage commercial.</p>
