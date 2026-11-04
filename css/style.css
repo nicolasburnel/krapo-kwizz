@@ -485,3 +485,14 @@ details.fams .chips{margin-top:10px}
 .pheno-leg i.l2{background:var(--accent)}
 .saison-chip{margin-top:10px;display:inline-flex;align-items:center;gap:6px;padding:7px 14px}
 .saison-chip svg{width:16px;height:16px}
+
+/* photos de terrain (iNaturalist) : photo entière, fond flouté qui remplit le cadre */
+.pic.insitu{background:#0e1a17;isolation:isolate;overflow:hidden}
+.pic.insitu::before{content:"";position:absolute;inset:-30px;background:var(--insitu) center/cover no-repeat;filter:blur(22px) brightness(.6) saturate(1.1);z-index:-1}
+.pic.insitu img{object-fit:contain;padding:0}
+.pic.loading::before{display:none}
+.pic.loading::after{content:"";position:absolute;width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.25);border-top-color:#fff;animation:kkspin .8s linear infinite;left:calc(50% - 17px);top:calc(50% - 17px)}
+.pic.loading img{opacity:0}
+@keyframes kkspin{to{transform:rotate(360deg)}}
+.pic-credit{position:absolute;left:8px;bottom:8px;max-width:calc(100% - 140px);background:rgba(10,20,17,.6);color:#fff;font-size:.66rem;padding:3px 8px;border-radius:999px;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:2}
+.pic .other,.pic .pic-q{z-index:2}

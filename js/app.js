@@ -473,7 +473,7 @@ function renderStage() {
     st.innerHTML = `<div class="pic${rev ? ' reveal' : ''}${plan ? ' insitu loading' : ''}"><img alt="Photo de l'espèce à trouver"${plan ? '' : ` src="${photoURL(g.photo)}"`}>${(cur.photos.length > 1 || plan) && !rev ? '<button type="button" class="other" id="other">Autre photo</button>' : ''}${inverse ? '<span class="pic-q">Quel est son chant ?</span>' : ''}<a class="pic-credit" target="_blank" rel="noopener" hidden></a></div>` + hintBarHTML();
     const im = $('.pic img'), box = $('.pic');
     const startReveal = () => { if (!rev) return; im.style.transition = 'none'; im.style.filter = `blur(${CFG.revealBlur}px)`; g.qStart = performance.now(); requestAnimationFrame(() => requestAnimationFrame(() => { im.style.transition = `filter ${CFG.revealSeconds}s linear`; im.style.filter = 'blur(0px)'; })); };
-    const showGuide = () => { box.classList.remove('insitu', 'loading'); im.src = photoURL(g.photo); g.insitu = null; $('.pic-credit').hidden = true; startReveal(); };
+    const showGuide = () => { box.classList.remove('insitu', 'loading'); box.style.removeProperty('--insitu'); im.src = photoURL(g.photo); g.insitu = null; $('.pic-credit').hidden = true; startReveal(); };
     const showInsitu = async p => {
       const q = g.idx, tok = g.photoTok = (g.photoTok || 0) + 1;
       if (p && p.live) { await Promise.race([INAT.fetchLive(cur), new Promise(r => setTimeout(r, 3500))]); if (Game !== g || g.idx !== q || g.photoTok !== tok) return; p = INAT.pick(cur); }
@@ -482,7 +482,7 @@ function renderStage() {
       const ok = await INAT.preload(p.url);
       if (Game !== g || g.idx !== q || g.photoTok !== tok || g.cur !== cur || !$('.pic')) return;
       if (!ok) { const alt = INAT.pick(cur, p.url); return alt && alt.url !== p.url && !g.retried ? (g.retried = true, showInsitu(alt)) : showGuide(); }
-      g.insitu = p; box.classList.remove('loading'); im.src = p.url;
+      g.insitu = p; box.classList.remove('loading'); im.src = p.url; box.style.setProperty('--insitu', `url("${p.url}")`);
       const cr = $('.pic-credit'); cr.href = p.obs; cr.textContent = `© ${p.attr} · iNaturalist`; cr.hidden = false; startReveal();
     };
     g.retried = false;
