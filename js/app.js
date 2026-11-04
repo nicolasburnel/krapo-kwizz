@@ -349,10 +349,12 @@ const INAT = {
 };
 function insituFor(g, idx) { // photo de terrain choisie (et préchargée) pour la question idx
   g.insituPlan = g.insituPlan || {};
-  if (idx in g.insituPlan) return g.insituPlan[idx];
   const id = g.fixed ? (g.fixed[idx] && g.fixed[idx].mode !== 'ecoute' && g.fixed[idx].id) : g.deck && g.deck[idx];
-  const s = id && BYID[id], p = s && INAT.eligible(s) ? INAT.pick(s) : null;
-  if (p) { g.insituPlan[idx] = p; INAT.preload(p.url); }
+  if (!id) return null;
+  const old = g.insituPlan[idx];
+  if (old && old.sid === id) return old; // le plan doit correspondre à l'espèce actuellement prévue à cette place
+  const s = BYID[id], p = s && INAT.eligible(s) ? INAT.pick(s) : null;
+  if (p) { p.sid = id; g.insituPlan[idx] = p; INAT.preload(p.url); } else delete g.insituPlan[idx];
   return p;
 }
 function preloadAhead(g) { if (g.cfg.terrain === false) return; for (let k = 1; k <= 3; k++) insituFor(g, g.idx + k); }
@@ -465,19 +467,20 @@ function renderStage() {
   } else {
     const rev = g.cfg.mode === 'photo' && g.cfg.reveal;
     const terrain = g.cfg.terrain !== false && (INAT.eligible(cur) || INAT.canTry(cur));
-    let plan = terrain ? (insituFor(g, g.idx) || INAT.pick(cur) || { live: true }) : null;
-    if (plan && plan.url && !g.fixed && g.deck && g.deck[g.idx] !== cur.id) plan = INAT.pick(cur);
+    let plan = terrain ? insituFor(g, g.idx) : null;
+    if (terrain && (!plan || plan.sid !== cur.id)) plan = INAT.pick(cur) || { live: true };
+    if (plan && !plan.live) plan.sid = cur.id;
     st.innerHTML = `<div class="pic${rev ? ' reveal' : ''}${plan ? ' insitu loading' : ''}"><img alt="Photo de l'espèce à trouver"${plan ? '' : ` src="${photoURL(g.photo)}"`}>${(cur.photos.length > 1 || plan) && !rev ? '<button type="button" class="other" id="other">Autre photo</button>' : ''}${inverse ? '<span class="pic-q">Quel est son chant ?</span>' : ''}<a class="pic-credit" target="_blank" rel="noopener" hidden></a></div>` + hintBarHTML();
     const im = $('.pic img'), box = $('.pic');
     const startReveal = () => { if (!rev) return; im.style.transition = 'none'; im.style.filter = `blur(${CFG.revealBlur}px)`; g.qStart = performance.now(); requestAnimationFrame(() => requestAnimationFrame(() => { im.style.transition = `filter ${CFG.revealSeconds}s linear`; im.style.filter = 'blur(0px)'; })); };
     const showGuide = () => { box.classList.remove('insitu', 'loading'); im.src = photoURL(g.photo); g.insitu = null; $('.pic-credit').hidden = true; startReveal(); };
     const showInsitu = async p => {
-      const q = g.idx;
-      if (p && p.live) { await Promise.race([INAT.fetchLive(cur), new Promise(r => setTimeout(r, 3500))]); if (Game !== g || g.idx !== q) return; p = INAT.pick(cur); }
+      const q = g.idx, tok = g.photoTok = (g.photoTok || 0) + 1;
+      if (p && p.live) { await Promise.race([INAT.fetchLive(cur), new Promise(r => setTimeout(r, 3500))]); if (Game !== g || g.idx !== q || g.photoTok !== tok) return; p = INAT.pick(cur); }
       if (!p) return showGuide();
       if (rev) im.style.filter = `blur(${CFG.revealBlur}px)`;
       const ok = await INAT.preload(p.url);
-      if (Game !== g || g.idx !== q || !$('.pic')) return;
+      if (Game !== g || g.idx !== q || g.photoTok !== tok || g.cur !== cur || !$('.pic')) return;
       if (!ok) { const alt = INAT.pick(cur, p.url); return alt && alt.url !== p.url && !g.retried ? (g.retried = true, showInsitu(alt)) : showGuide(); }
       g.insitu = p; box.classList.remove('loading'); im.src = p.url;
       const cr = $('.pic-credit'); cr.href = p.obs; cr.textContent = `© ${p.attr} · iNaturalist`; cr.hidden = false; startReveal();
