@@ -51,7 +51,7 @@ C'est le cœur de l'appli : une ligne par espèce. GitHub l'affiche comme un tab
 
 ### Les milieux de l'ambiance mare : `data/ambiances.csv`
 
-Une ligne par milieu (mare forestière, sous-bois, bord de crique, savanes et marais, village). La colonne `especes` liste les `id` des espèces qui peuvent réellement chanter ensemble dans ce milieu, séparés par ` | `. Seules les espèces qui ont un chant sont utilisées, et un milieu doit en compter au moins 6. Tu peux ajouter un milieu en ajoutant une ligne.
+Une ligne par milieu et par moment (mare forestière, sous-bois de nuit et de jour, bord de crique de nuit et de jour, savanes et marais, village). La colonne `periode` vaut `jour` ou `nuit` : les espèces d'une même ligne doivent chanter au même moment. La colonne `especes` liste les `id` des espèces qui peuvent réellement chanter ensemble dans ce milieu, séparés par ` | `. Seules les espèces qui ont un chant sont utilisées, et un milieu doit en compter au moins 6. Tu peux ajouter un milieu en ajoutant une ligne.
 
 ### Renommer une espèce
 

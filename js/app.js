@@ -108,7 +108,7 @@ async function loadData() {
   FAMS = [...new Set(SP.map(s => s.family))].sort((a, b) => a.localeCompare(b));
   try {
     const ra = await fetch('data/ambiances.csv', { cache: 'no-cache' });
-    AMB = parseCSV(await ra.text()).map(a => ({ id: a.id, name: a.nom, desc: a.description, ids: list(a.especes).filter(id => BYID[id] && hasSound(BYID[id])) })).filter(a => a.ids.length >= 6);
+    AMB = parseCSV(await ra.text()).map(a => ({ id: a.id, name: a.nom, desc: a.description, per: a.periode === 'jour' ? 'jour' : 'nuit', ids: list(a.especes).filter(id => BYID[id] && hasSound(BYID[id])) })).filter(a => a.ids.length >= 6);
   } catch (e) { AMB = []; }
 }
 const STATUTS = {
@@ -203,6 +203,7 @@ const LEVELS = {
 const FORMATS = { noms: ['4 noms', 'Choisis le bon nom'], photos: ['4 photos', 'Clique sur la bonne grenouille'], inverse: ['Inverse', 'Une photo : retrouve son chant parmi 4'], saisie: ['Saisie libre', 'Écris le nom exact'] };
 const MARE_LEVELS = { decouverte: ['Découverte', '2 espèces chantent ensemble'], inter: ['Intermédiaire', '3 espèces chantent ensemble'], expert: ['Expert', '4 espèces chantent ensemble'] };
 const MARE_N = { decouverte: 2, inter: 3, expert: 4 };
+const PERIODES = { '': ['Jour ou nuit', ''], nuit: ['La nuit', ''], jour: ['En journée', ''] };
 const RYTHMES = { serie: ['Série', `${CFG.serieLength} questions`], chrono: ['Chrono', `${CFG.chronoSeconds} secondes`], survie: ['Survie', `${CFG.lives} vies`] };
 function isFree() { return S.mode === 'ecoute' ? S.format === 'saisie' : S.level === 'maitre'; }
 function poolFor(cfg = S) {
@@ -212,7 +213,7 @@ function poolFor(cfg = S) {
 function configKey(cfg = S) { return [cfg.mode, cfg.mode === 'ecoute' ? cfg.format : '', cfg.level, cfg.rythme, cfg.fams.length ? cfg.fams.slice().sort().join('+') : 'toutes'].join('/') + (cfg.saison ? '/saison' : ''); }
 function configLabel(key) {
   if (key === 'daily') return 'Défi du jour';
-  if (key.startsWith('mare/')) { const [, lv, amb] = key.split('/'); const a = AMB.find(x => x.id === amb); return ['Ambiance mare', MARE_LEVELS[lv] ? MARE_LEVELS[lv][0] : lv, a ? a.name : 'ambiances au hasard'].join(' · '); }
+  if (key.startsWith('mare/')) { const [, lv, amb] = key.split('/'); const a = AMB.find(x => x.id === amb); return ['Ambiance mare', MARE_LEVELS[lv] ? MARE_LEVELS[lv][0] : lv, a ? a.name : amb === 'randomjour' ? 'en journée' : amb === 'randomnuit' ? 'la nuit' : 'ambiances au hasard'].join(' · '); }
   const [mode, format, level, rythme, fams] = key.split('/');
   const parts = [mode === 'ecoute' ? 'Écoute' : 'Photo'];
   if (format) parts.push(FORMATS[format][0]);
@@ -844,13 +845,14 @@ const Mix = {
 };
 function syncMare() { const b = $('#mplay'); if (b) { b.innerHTML = Mix.on ? ICON.pause : ICON.play; b.classList.toggle('on', Mix.on); } }
 function mareSetupHTML() {
-  const best = Store.data.best[`mare/${S.mareLevel}/${S.mareAmb || 'random'}`];
+  const best = Store.data.best[`mare/${S.mareLevel}/${S.mareAmb || 'random' + (S.marePer || '')}`];
   return `<section class="setup" aria-label="Réglages de l'ambiance mare">
-    <p class="desc" style="font-size:.95rem">Plusieurs espèces chantent en même temps, comme une vraie nuit de terrain. Les espèces sont tirées dans un même milieu : elles peuvent réellement chanter ensemble. Coche toutes celles que tu entends.</p>
+    <p class="desc" style="font-size:.95rem">Plusieurs espèces chantent en même temps, comme sur le terrain. Les espèces d'une scène vivent dans le même milieu et chantent au même moment : elles peuvent réellement s'entendre ensemble. Coche toutes celles que tu entends.</p>
     <div class="opt"><span class="lbl">Difficulté</span>${segHTML('seg-mlevel', MARE_LEVELS, S.mareLevel, 'withsub')}</div>
+    <div class="opt"><span class="lbl">Moment</span>${segHTML('seg-mper', PERIODES, S.marePer || '')}</div>
     <div class="opt"><span class="lbl">Milieu</span><div class="chips" id="ambchips">
       <button type="button" class="chip" data-a="" aria-pressed="${!S.mareAmb}">Au hasard</button>
-      ${AMB.map(a => `<button type="button" class="chip" data-a="${a.id}" aria-pressed="${S.mareAmb === a.id}">${esc(a.name)}<span class="n">${a.ids.length}</span></button>`).join('')}</div>
+      ${AMB.filter(a => !S.marePer || a.per === S.marePer).map(a => `<button type="button" class="chip" data-a="${a.id}" aria-pressed="${S.mareAmb === a.id}">${esc(a.name)}<span class="n">${a.ids.length}</span></button>`).join('')}</div>
       ${S.mareAmb ? `<p class="desc">${esc(AMB.find(a => a.id === S.mareAmb).desc)}</p>` : ''}</div>
     <div class="toggles"><label class="toggle"><span>Spectrogramme<small>Voir les chants défiler pendant l'écoute</small></span><input type="checkbox" class="switch" id="t-spectro"${S.spectro ? ' checked' : ''}></label></div>
     <div class="start"><div><div class="count">${CFG.mareRounds} scènes</div>${best ? `<div class="best">Record : ${best} pts</div>` : ''}</div>
@@ -859,13 +861,14 @@ function mareSetupHTML() {
 }
 function bindMareSetup() {
   $('#seg-mlevel').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.mareLevel = b.dataset.v; saveSettings(); viewHome(); };
+  $('#seg-mper').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.marePer = b.dataset.v; const a = AMB.find(x => x.id === S.mareAmb); if (a && S.marePer && a.per !== S.marePer) S.mareAmb = ''; saveSettings(); viewHome(); };
   $('#ambchips').onclick = e => { const b = e.target.closest('.chip'); if (!b) return; S.mareAmb = b.dataset.a; saveSettings(); viewHome(); };
   $('#t-spectro').onchange = e => { S.spectro = e.target.checked; saveSettings(); };
   $('#go').onclick = startMare;
 }
 function startMare() {
   const n = MARE_N[S.mareLevel] || 3;
-  Game = { type: 'mare', cfg: { ...S }, key: `mare/${S.mareLevel}/${S.mareAmb || 'random'}`, n, round: 0, score: 0, found: 0, total: 0, perfect: 0, misses: [], done: false, timer: 0, locked: false };
+  Game = { type: 'mare', cfg: { ...S }, key: `mare/${S.mareLevel}/${S.mareAmb || 'random' + (S.marePer || '')}`, n, round: 0, score: 0, found: 0, total: 0, perfect: 0, misses: [], done: false, timer: 0, locked: false };
   Store.data.totals.games++; Store.save();
   history.pushState(null, '', '#partie'); document.body.classList.add('in-game'); $$('.nav a').forEach(a => a.removeAttribute('aria-current'));
   nextScene();
@@ -874,7 +877,7 @@ function nextScene() {
   const g = Game; if (!g || g.done) return;
   if (g.round >= CFG.mareRounds) return finishMare();
   g.round++; g.locked = false; g.sel = new Set();
-  const ambs = g.cfg.mareAmb ? AMB.filter(a => a.id === g.cfg.mareAmb) : AMB.filter(a => a.ids.length >= g.n + 4);
+  const ambs = g.cfg.mareAmb ? AMB.filter(a => a.id === g.cfg.mareAmb) : AMB.filter(a => a.ids.length >= g.n + 4 && (!g.cfg.marePer || a.per === g.cfg.marePer));
   g.amb = ambs[Math.random() * ambs.length | 0];
   g.present = shuffle(g.amb.ids.slice()).slice(0, g.n);
   const cand = g.amb.ids.map(id => BYID[id]).sort((a, b) => a.name.localeCompare(b.name));
