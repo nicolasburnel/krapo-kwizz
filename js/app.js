@@ -301,39 +301,61 @@ function viewHome() {
   $('#go').onclick = () => startGame();
 }
 
-/* ---------------- photos de terrain (iNaturalist) ---------------- */
+/* ---------------- photos de terrain (iNaturalist) ----------------
+   data/inat.json : index des photos iNaturalist (qualité recherche, licences Creative Commons),
+   préparé à l'avance pour un affichage instantané. Seules les images sont chargées en ligne,
+   au fil de la partie, en préchargeant les questions suivantes. */
 const INAT = {
-  api: 'https://api.inaturalist.org/v1/observations', place: 6949, // Guyane française
-  licences: 'cc-by,cc-by-nc,cc-by-sa,cc-by-nc-sa,cc0', cache: {}, pending: {},
-  eligible: s => !/\b(aff|cf|sp)\./.test(s.name),
-  async list(s) {
-    if (!this.eligible(s) || !navigator.onLine) return [];
-    if (this.cache[s.id]) return this.cache[s.id];
-    if (this.pending[s.id]) return this.pending[s.id];
-    const q = (place) => `${this.api}?taxon_name=${encodeURIComponent(s.name)}&quality_grade=research&photos=true&photo_license=${this.licences}&per_page=60&order_by=votes${place ? '&place_id=' + this.place : ''}`;
-    this.pending[s.id] = (async () => {
-      const get = async url => { const c = new AbortController(); const tm = setTimeout(() => c.abort(), 5000); try { const r = await fetch(url, { signal: c.signal }); return r.ok ? (await r.json()).results || [] : []; } finally { clearTimeout(tm); } };
-      let res = await get(q(true)).catch(() => []);
-      if (res.length < 4) res = res.concat(await get(q(false)).catch(() => []));
-      const seen = new Set(), out = [];
-      for (const o of res) {
-        if (!o.taxon || !o.taxon.name.startsWith(s.name)) continue;
-        for (const ph of (o.photos || []).slice(0, 2)) {
-          if (!ph.url || seen.has(ph.id) || !ph.license_code) continue; seen.add(ph.id);
-          out.push({ url: ph.url.replace('/square.', '/medium.'), attr: (ph.attribution || '').replace(/,? ?some rights reserved/i, ''), lic: ph.license_code.toUpperCase().replace('CC-', 'CC '), obs: 'https://www.inaturalist.org/observations/' + o.id });
-        }
-      }
-      this.cache[s.id] = out; delete this.pending[s.id]; return out;
-    })().catch(() => { delete this.pending[s.id]; return []; });
-    return this.pending[s.id];
+  data: null, loading: null, imgs: {}, live: {}, livePending: {},
+  load() {
+    if (this.data) return Promise.resolve(this.data);
+    if (!this.loading) this.loading = fetch('data/inat.json').then(r => (r.ok ? r.json() : {})).then(d => (this.data = d)).catch(() => (this.data = {}));
+    return this.loading;
   },
-  async pick(s, avoid) {
-    const L = await this.list(s); if (!L.length) return null;
-    const pool = L.filter(p => p.url !== avoid); const p = (pool.length ? pool : L)[Math.random() * (pool.length || L.length) | 0];
-    await new Promise(res => { const im = new Image(); im.onload = im.onerror = res; im.src = p.url; setTimeout(res, 6000); });
-    return p;
+  list(s) { return (this.data && this.data[s.id] && this.data[s.id].length ? this.data[s.id] : this.live[s.id]) || []; },
+  canTry: s => navigator.onLine && !/\b(aff|cf|sp)\./.test(s.name),
+  eligible(s) { return navigator.onLine && this.list(s).length > 0; },
+  url: p => `https://inaturalist-open-data.s3.amazonaws.com/photos/${p[0]}/medium.${p[1]}`,
+  info(p) { return { url: INAT.url(p), attr: p[3] || 'iNaturalist', obs: 'https://www.inaturalist.org/observations/' + p[2] }; },
+  pick(s, avoid) {
+    const L = this.list(s); if (!L.length) return null;
+    const pool = L.filter(p => INAT.url(p) !== avoid);
+    return this.info((pool.length ? pool : L)[Math.random() * (pool.length || L.length) | 0]);
+  },
+  // secours si l'index n'a pas cette espèce : recherche en direct sur l'API iNaturalist
+  fetchLive(s) {
+    if (this.list(s).length || !this.canTry(s)) return Promise.resolve();
+    if (this.livePending[s.id]) return this.livePending[s.id];
+    const lic = 'cc-by,cc-by-nc,cc-by-sa,cc-by-nc-sa,cc0';
+    const base = `https://api.inaturalist.org/v1/observations?taxon_name=${encodeURIComponent(s.name)}&quality_grade=research&photos=true&photo_license=${lic}&per_page=100&order_by=votes`;
+    const get = async url => { const c = new AbortController(); const tm = setTimeout(() => c.abort(), 6000); try { const r = await fetch(url, { signal: c.signal }); return r.ok ? (await r.json()).results || [] : []; } catch (e) { return []; } finally { clearTimeout(tm); } };
+    return (this.livePending[s.id] = (async () => {
+      let res = await get(base + '&place_id=6949'); if (res.length < 10) res = res.concat(await get(base));
+      const out = [], seen = new Set();
+      for (const o of res) { if (!o.taxon || !o.taxon.name.startsWith(s.name)) continue;
+        for (const ph of (o.photos || []).slice(0, 2)) { const m = ph.url && ph.url.match(/photos\/(\d+)\/square\.(\w+)/); if (!m || !ph.license_code || seen.has(m[1])) continue; seen.add(m[1]);
+          out.push([+m[1], m[2], o.id, (ph.attribution || '').replace(/^\(c\)\s*/, '').replace(/,?\s*(some|no) rights reserved.*$/i, '').trim()]); } }
+      this.live[s.id] = out;
+    })());
+  },
+  preload(url) {
+    if (!this.imgs[url]) this.imgs[url] = new Promise(res => { const im = new Image(); im.decoding = 'async'; im.onload = () => res(true); im.onerror = () => res(false); im.src = url; setTimeout(() => res(false), 8000); });
+    return this.imgs[url];
+  },
+  async warm(ids) { // prépare une partie : recherches en direct (4 à la fois) puis préchargement
+    const todo = ids.map(id => BYID[id]).filter(s => s && !this.list(s).length && this.canTry(s));
+    for (let i = 0; i < todo.length; i += 4) await Promise.all(todo.slice(i, i + 4).map(s => this.fetchLive(s)));
   },
 };
+function insituFor(g, idx) { // photo de terrain choisie (et préchargée) pour la question idx
+  g.insituPlan = g.insituPlan || {};
+  if (idx in g.insituPlan) return g.insituPlan[idx];
+  const id = g.fixed ? (g.fixed[idx] && g.fixed[idx].mode !== 'ecoute' && g.fixed[idx].id) : g.deck && g.deck[idx];
+  const s = id && BYID[id], p = s && INAT.eligible(s) ? INAT.pick(s) : null;
+  if (p) { g.insituPlan[idx] = p; INAT.preload(p.url); }
+  return p;
+}
+function preloadAhead(g) { if (g.cfg.terrain === false) return; for (let k = 1; k <= 3; k++) insituFor(g, g.idx + k); }
 
 /* ---------------- moteur de jeu ---------------- */
 function weight(s) { if (!S.revision) return 1; const m = Store.mastery(s.id, S.mode === 'ecoute' ? 'e' : 'p'); return 6 - m.b; }
@@ -368,6 +390,7 @@ function startGame(onlyIds) {
     t0: 0, timer: 0, cur: null, choices: [], hints: 0, locked: false, photo: null, revisit: onlyIds ? true : false, grid: [],
   };
   Store.data.totals.games++; Store.save();
+  if (S.terrain !== false && (S.mode === 'photo' || S.format === 'inverse')) { const G = Game; for (let k = 0; k < 3; k++) insituFor(G, k); INAT.warm((G.deck.length ? G.deck : G.pool.map(s => s.id)).slice(0, 40)).then(() => { if (Game === G) preloadAhead(G); }); }
   if (location.hash !== '#partie') { history.pushState(null, '', '#partie'); }
   document.body.classList.add('in-game');
   $$('.nav a').forEach(a => a.removeAttribute('aria-current'));
@@ -441,25 +464,31 @@ function renderStage() {
     if (g.cfg.spectro) Spec.attach($('#spec'));
   } else {
     const rev = g.cfg.mode === 'photo' && g.cfg.reveal;
-    const terrain = g.cfg.terrain !== false && INAT.eligible(cur) && navigator.onLine;
-    st.innerHTML = `<div class="pic${rev ? ' reveal' : ''}${terrain ? ' insitu loading' : ''}"><img alt="Photo de l'espèce à trouver"${terrain ? '' : ` src="${photoURL(g.photo)}"`}>${(cur.photos.length > 1 || terrain) && !rev ? '<button type="button" class="other" id="other">Autre photo</button>' : ''}${inverse ? '<span class="pic-q">Quel est son chant ?</span>' : ''}<a class="pic-credit" target="_blank" rel="noopener" hidden></a></div>` + hintBarHTML();
+    const terrain = g.cfg.terrain !== false && (INAT.eligible(cur) || INAT.canTry(cur));
+    let plan = terrain ? (insituFor(g, g.idx) || INAT.pick(cur) || { live: true }) : null;
+    if (plan && plan.url && !g.fixed && g.deck && g.deck[g.idx] !== cur.id) plan = INAT.pick(cur);
+    st.innerHTML = `<div class="pic${rev ? ' reveal' : ''}${plan ? ' insitu loading' : ''}"><img alt="Photo de l'espèce à trouver"${plan ? '' : ` src="${photoURL(g.photo)}"`}>${(cur.photos.length > 1 || plan) && !rev ? '<button type="button" class="other" id="other">Autre photo</button>' : ''}${inverse ? '<span class="pic-q">Quel est son chant ?</span>' : ''}<a class="pic-credit" target="_blank" rel="noopener" hidden></a></div>` + hintBarHTML();
     const im = $('.pic img'), box = $('.pic');
     const startReveal = () => { if (!rev) return; im.style.transition = 'none'; im.style.filter = `blur(${CFG.revealBlur}px)`; g.qStart = performance.now(); requestAnimationFrame(() => requestAnimationFrame(() => { im.style.transition = `filter ${CFG.revealSeconds}s linear`; im.style.filter = 'blur(0px)'; })); };
     const showGuide = () => { box.classList.remove('insitu', 'loading'); im.src = photoURL(g.photo); g.insitu = null; $('.pic-credit').hidden = true; startReveal(); };
-    const showInsitu = async () => {
-      const q = g.idx, p = await INAT.pick(cur, g.insitu && g.insitu.url);
-      if (Game !== g || g.idx !== q || !$('.pic')) return;
+    const showInsitu = async p => {
+      const q = g.idx;
+      if (p && p.live) { await Promise.race([INAT.fetchLive(cur), new Promise(r => setTimeout(r, 3500))]); if (Game !== g || g.idx !== q) return; p = INAT.pick(cur); }
       if (!p) return showGuide();
+      if (rev) im.style.filter = `blur(${CFG.revealBlur}px)`;
+      const ok = await INAT.preload(p.url);
+      if (Game !== g || g.idx !== q || !$('.pic')) return;
+      if (!ok) { const alt = INAT.pick(cur, p.url); return alt && alt.url !== p.url && !g.retried ? (g.retried = true, showInsitu(alt)) : showGuide(); }
       g.insitu = p; box.classList.remove('loading'); im.src = p.url;
-      const cr = $('.pic-credit'); cr.href = p.obs; cr.textContent = `${p.attr} · iNaturalist`; cr.hidden = false; startReveal();
+      const cr = $('.pic-credit'); cr.href = p.obs; cr.textContent = `© ${p.attr} · iNaturalist`; cr.hidden = false; startReveal();
     };
-    if (terrain) { if (rev) im.style.filter = `blur(${CFG.revealBlur}px)`; showInsitu(); } else startReveal();
+    g.retried = false;
+    if (plan) showInsitu(plan); else startReveal();
     const o = $('#other'); if (o) o.onclick = () => {
-      if (g.insitu || terrain && box.classList.contains('insitu')) { box.classList.add('loading'); showInsitu(); return; }
+      if (plan) { box.classList.add('loading'); showInsitu(INAT.pick(cur, g.insitu && g.insitu.url)); return; }
       const others = cur.photos.filter(p => p !== g.photo); g.photo = others[Math.random() * others.length | 0]; im.src = photoURL(g.photo);
     };
-    // préchargement de la question suivante
-    if (terrain && g.deck && g.deck[g.idx + 1] && BYID[g.deck[g.idx + 1]]) INAT.list(BYID[g.deck[g.idx + 1]]);
+    preloadAhead(g);
   }
   $('#hintbtn').onclick = useHint; syncPlay();
 }
@@ -1096,5 +1125,6 @@ function renderCarnet() {
   if (location.hash === '#partie') history.replaceState(null, '', '#jouer');
   route();
   setTimeout(checkBadges, 1500);
+  INAT.load();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
