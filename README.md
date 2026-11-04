@@ -116,3 +116,7 @@ Les fonctions en ligne (profil avec pseudo, comparaison des carnets, classements
 3. **Retirer un score** : supprime le document du joueur dans `defis/{date}/scores` ou dans `classements/{mode}/scores`.
 4. **Bloquer des mots dans les pseudos** : ajoute-les à la liste `BAD_WORDS`, en haut de `js/social.js`.
 5. **Ménage** : les salons de parties en direct (`salons`) peuvent être supprimés de temps en temps, ils ne servent plus une fois la partie finie.
+
+### Photos de terrain (`data/inat.json`)
+
+Les quiz photo utilisent des photos d'iNaturalist (qualité recherche, licences Creative Commons). Leur liste est préparée à l'avance dans `data/inat.json` pour un affichage instantané : jusqu'à 80 photos par espèce, en priorité de Guyane. Seules les images sont chargées en ligne pendant la partie. Pour une espèce absente de ce fichier, l'appli interroge iNaturalist en direct, puis revient aux photos du guide s'il n'y a rien. Pour rafraîchir la liste (nouvelles observations), il suffit de demander à Claude de la régénérer.
