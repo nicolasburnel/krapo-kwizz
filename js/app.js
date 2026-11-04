@@ -451,7 +451,7 @@ function renderStage() {
       if (Game !== g || g.idx !== q || !$('.pic')) return;
       if (!p) return showGuide();
       g.insitu = p; box.classList.remove('loading'); im.src = p.url;
-      const cr = $('.pic-credit'); cr.href = p.obs; cr.textContent = `${p.attr} · ${p.lic} · iNaturalist`; cr.hidden = false; startReveal();
+      const cr = $('.pic-credit'); cr.href = p.obs; cr.textContent = `${p.attr} · iNaturalist`; cr.hidden = false; startReveal();
     };
     if (terrain) { if (rev) im.style.filter = `blur(${CFG.revealBlur}px)`; showInsitu(); } else startReveal();
     const o = $('#other'); if (o) o.onclick = () => {
