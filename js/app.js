@@ -798,7 +798,7 @@ function viewAbout() {
     ${(() => { const extra = [...new Set(SP.map(s => s.photoBy).filter(c => c && !c.startsWith('Guide')).flatMap(c => c.split(/ & |, /)))]; return extra.length ? `<p><b>Autres photos :</b> ${extra.map(esc).join(', ')}. Le crédit de chaque photo est indiqué sur la fiche de l'espèce.</p>` : ''; })()}
     <p><b>Photos de terrain (quiz) :</b> observations de qualité recherche publiées sur <a href="https://www.inaturalist.org" target="_blank" rel="noopener">iNaturalist</a> sous licence Creative Commons, chargées en ligne. L'auteur et la licence de chaque photo sont affichés sous l'image.</p>
     <p><b>Cartes de répartition :</b> guide d'identification des Amphibiens de Guyane (2023), d'après les données de Faune-Guyane.</p>
-    <p><b>Taxonomie :</b> noms mis à jour en 2026, dont <i>Pristimantis flavus</i> et <i>P. fouqueti</i> (Mônico et al. 2025), <i>P. grandoculis</i>, <i>Scinax</i> cf. <i>cruentomma</i> et <i>Otophryne</i> aff. <i>robusta</i>.</p>
+    <p><b>Taxonomie :</b> noms mis à jour en 2026, dont <i>Pristimantis flavus</i> et <i>P. fouqueti</i> (Mônico et al. 2025), <i>Rhinella guianensis</i> et <i>R. latebrosa</i> (Avila et al. 2026), <i>P. grandoculis</i>, <i>Scinax</i> cf. <i>cruentomma</i> et <i>Otophryne</i> aff. <i>robusta</i>.</p>
     <p><b>Licence :</b> les contenus (sons, photos, textes) sont partagés sous licence <a href="https://creativecommons.org/licenses/by-nc/4.0/deed.fr" target="_blank" rel="noopener">Creative Commons BY-NC 4.0</a>. Tu peux les réutiliser en citant leurs auteurs, sans usage commercial.</p>
     <p class="small" style="opacity:.7;margin-top:2em">Krapo Kwizz · conçu par Nicolas Burnel</p>
   </article>`;
