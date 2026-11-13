@@ -259,8 +259,8 @@ function viewHome() {
   const n = poolFor().length, best = Store.data.best[configKey()];
   app.innerHTML = `
   <section class="hero">
-    <span class="eyebrow">Amphibiens de Guyane</span>
     <h1 style="margin:0"><img class="hero-logo" src="assets/logo-kk-${matchMedia('(prefers-color-scheme: light)').matches ? 'noir' : 'blanc'}.png" alt="Krapo Kwizz"></h1>
+    <p class="hero-tag">Amphibiens de Guyane</p>
     <p class="lede">Apprends à reconnaître les amphibiens de Guyane à l'oreille et à l'œil, avant d'aller les chercher en forêt.</p>
   </section>
   ${dailyCardHTML()}
@@ -744,22 +744,26 @@ function viewProgress() {
       <div class="kpi"><b>${t.answers}</b><span>réponses données</span></div>
       <div class="kpi"><b>${pct} %</b><span>de bonnes réponses</span></div>
     </div>
-    <div class="famprog"><div class="fp head"><span>Famille</span><span>Écoute</span><span>Photo</span></div>
-      ${FAMS.map(f => { const e = sE.filter(s => s.family === f), p = sP.filter(s => s.family === f);
-        const pe = e.length ? mast(e, 'e') / e.length * 100 : 0, pp = p.length ? mast(p, 'p') / p.length * 100 : 0;
-        return `<div class="fp"><span>${esc(f)}</span><span title="${mast(e, 'e')} / ${e.length}">${e.length ? `<span class="meter"><div style="width:${pe}%"></div></span>` : '<span class="muted small">–</span>'}</span><span title="${mast(p, 'p')} / ${p.length}">${p.length ? `<span class="meter p"><div style="width:${pp}%"></div></span>` : '<span class="muted small">–</span>'}</span></div>`; }).join('')}
-    </div>
+    ${recapHTML(sE, sP)}
+    ${weakList()}
     ${recs.length ? `<h2 style="margin-top:26px">Records</h2><div class="records">${recs.map(([k, v]) => `<div class="rec"><span>${esc(configLabel(k))}</span><b>${v}</b></div>`).join('')}</div>` : ''}
     ${badgesHTML()}
-    ${weakList()}
     <div class="row" style="margin-top:26px"><button type="button" class="btn ghost" id="reset">Effacer mes progrès</button><span class="small" id="resetmsg"></span></div>
     <div class="row links-foot"><a href="#apropos">À propos de Krapo Kwizz</a><a href="#confidentialite">Confidentialité</a></div>`;
   if (window.Social) Social.bindAccountCard();
   bindRows($('#app'));
   const r = $('#reset'); let armed = false;
   r.onclick = () => { if (!armed) { armed = true; r.textContent = 'Confirmer l\'effacement'; $('#resetmsg').textContent = 'Clique encore pour tout effacer.'; return; }
-    Store.data = { m: {}, best: {}, last: Store.data.last, totals: { games: 0, answers: 0, correct: 0 } }; Store.save(); viewProgress(); toast('Progrès effacés'); };
+    const d = Store.data; Store.data = { m: {}, best: {}, last: d.last, totals: { games: 0, answers: 0, correct: 0 }, badges: {}, daily: {}, carnet: d.carnet || {}, rec: {} };
+    Store.save(); viewProgress(); scrollTo(0, 0); toast('Progrès effacés (ton carnet est conservé)'); };
   const w = $('#weakgo'); if (w) w.onclick = () => { const keep = { ...S }; S.mode = 'ecoute'; S.rythme = 'serie'; S.fams = []; startGame(JSON.parse(w.dataset.ids)); S = keep; };
+}
+function recapHTML(sE, sP) {
+  const cnt = (arr, k) => { let m = 0, w = 0, n = 0; for (const s of arr) { const x = Store.mastery(s.id, k); if (!x.n) n++; else if (x.b >= 3) m++; else w++; } return { m, w, n }; };
+  const e = cnt(sE, 'e'), p = cnt(sP, 'p');
+  const line = (lbl, c, tot) => `<div class="recap-row"><b>${lbl}</b><div class="recap-bar" role="img" aria-label="${c.m} maîtrisées, ${c.w} à retravailler, ${c.n} jamais vues sur ${tot}"><i class="m" style="flex:${c.m}"></i><i class="w" style="flex:${c.w}"></i><i class="n" style="flex:${c.n}"></i></div>
+    <div class="recap-leg"><span><i class="m"></i>${c.m} maîtrisée${c.m > 1 ? 's' : ''}</span><span><i class="w"></i>${c.w} à retravailler</span><span><i class="n"></i>${c.n} jamais vue${c.n > 1 ? 's' : ''}</span></div></div>`;
+  return `<section class="recap"><h2>Récapitulatif</h2>${line('Chants', e, sE.length)}${line('Photos', p, sP.length)}</section>`;
 }
 function weakList() {
   const rows = [];
@@ -767,7 +771,7 @@ function weakList() {
   rows.sort((a, b) => a.r - b.r || b.n - a.n);
   const top = rows.slice(0, 10); if (!top.length) return '';
   const eIds = top.filter(x => x.k === 'e').map(x => x.s.id);
-  return `<h2 style="margin-top:26px">Espèces à retravailler</h2><div class="misslist" style="margin-top:10px">${top.map(x => missRow(x.s).replace('<div class="t">', `<div class="t"><span class="tag${x.k === 'e' ? '' : ' off'}" style="float:right">${x.k === 'e' ? 'Écoute' : 'Photo'} ${x.c}/${x.n}</span>`)).join('')}</div>
+  return `<h2 style="margin-top:26px">Espèces à retravailler</h2><div class="misslist" style="margin-top:10px">${top.map(x => missRow(x.s).replace('<div class="t">', `<div class="t"><span class="tag wk${x.k === 'e' ? '' : ' ph'}">${x.k === 'e' ? 'Écoute' : 'Photo'} ${x.c}/${x.n}</span>`)).join('')}</div>
     ${eIds.length >= 1 ? `<div class="row" style="margin-top:10px"><button type="button" class="btn" id="weakgo" data-mode="ecoute" data-ids='${JSON.stringify(eIds)}'>Réviser ces chants</button></div>` : ''}`;
 }
 
